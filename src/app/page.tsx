@@ -1,246 +1,161 @@
 "use client"
-import React, { useState } from 'react';
-import { 
-  MapPin, Star, Clock, Search, ShieldCheck, 
-  Globe, Wrench, Phone, Zap, 
-  ChevronDown, X, Check, Sparkles, Video, MessageCircle,
-  Navigation, ArrowRight, Menu, Mic, Volume2
-} from 'lucide-react';
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
-const languages = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'ur', name: 'Urdu', flag: '🇵🇰' },
-  { code: 'pa', name: 'Punjabi', flag: '🇵🇰' },
-  { code: 'pl', name: 'Polish', flag: '🇵🇱' },
-  { code: 'ro', name: 'Romanian', flag: '🇷🇴' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'bn', name: 'Bengali', flag: '🇧🇩' },
-  { code: 'lt', name: 'Lithuanian', flag: '🇱🇹' },
-  { code: 'lv', name: 'Latvian', flag: '🇱🇻' },
-  { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
-  { code: 'so', name: 'Somali', flag: '🇸🇴' },
-  { code: 'gu', name: 'Gujarati', flag: '🇮🇳' },
-  { code: 'ps', name: 'Pashto', flag: '🇵🇰' },
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
-];
+type Garage = { id: string; name: string; address: string; phone: string; languages: string[]; services: string[]; verified: boolean; sponsored: boolean; rating: number; review_count: number; postcode: string }
 
-const services = ['All Services', 'MOT', 'Full Service', 'Brakes', 'Diagnostics', 'Tyres', 'Clutch', 'Engine Repair', 'Bodywork'];
+const languageFlags: any = { en: '🇬🇧', ur: '🇵🇰', pa: '🇵🇰', pl: '🇵🇱', ro: '🇷🇴', ar: '🇸🇦', hi: '🇮🇳', bn: '🇧🇩', lt: '🇱🇹', lv: '🇱🇻', tr: '🇹🇷', it: '🇮🇹', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪', pt: '🇵🇹', so: '🇸🇴', gu: '🇮🇳', ps: '🇵🇰', zh: '🇨🇳' }
+const languageNames: any = { en: 'English', ur: 'Urdu', pa: 'Punjabi', pl: 'Polish', ro: 'Romanian', ar: 'Arabic', hi: 'Hindi', bn: 'Bengali', lt: 'Lithuanian', lv: 'Latvian', tr: 'Turkish', it: 'Italian', es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', so: 'Somali', gu: 'Gujarati', ps: 'Pashto', zh: 'Chinese' }
 
-const garages = [
-  {
-    id: 1,
-    name: 'KwikFit Glasgow Central',
-    rating: 4.9,
-    reviews: 312,
-    open: true,
-    closesAt: '18:00',
-    languages: [languages[0], languages[1], languages[2]],
-    services: ['MOT', 'Service', 'Brakes', 'Tyres'],
-    distance: '0.3 miles',
-    verified: true,
-    sponsored: true,
-    image: 'https://images.unsplash.com/photo-1613214149922-f1809c99b414?w=600&h=400&fit=crop',
-    address: 'Argyle St, G2 8AH',
-    priceNote: 'Quote First',
-    responseTime: '~2m',
-    aiVoice: true,
-  },
-  {
-    id: 2,
-    name: 'Punjab Motors Ltd',
-    rating: 4.9,
-    reviews: 187,
-    open: true,
-    closesAt: '19:30',
-    languages: [languages[0], languages[1], languages[2], languages[6]],
-    services: ['Engine Repair', 'Service', 'Diagnostics'],
-    distance: '0.8 miles',
-    verified: true,
-    sponsored: true,
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=600&h=400&fit=crop',
-    address: 'Pollokshaws Rd, G41 3RG',
-    priceNote: 'Quote First',
-    responseTime: '~1m',
-    aiVoice: true,
-  },
-  {
-    id: 3,
-    name: 'Polish Auto Centre',
-    rating: 4.8,
-    reviews: 254,
-    open: true,
-    closesAt: '18:00',
-    languages: [languages[0], languages[3], languages[8]],
-    services: ['MOT', 'Clutch', 'Brakes', 'Bodywork'],
-    distance: '1.2 miles',
-    verified: true,
-    sponsored: false,
-    image: 'https://images.unsplash.com/photo-1632823471565-1ecdf9990772?w=600&h=400&fit=crop',
-    address: 'London Rd, G40 1EU',
-    priceNote: 'Quote First',
-    responseTime: '~4m',
-    aiVoice: true,
-  },
-];
+const allTimeSlots = ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30']
 
-export default function App() {
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [selectedService, setSelectedService] = useState('All Services');
-  const [selectedLang, setSelectedLang] = useState(languages[0]);
-  const [showLangDropdown, setShowLangDropdown] = useState(false);
-  const [bookedGarage, setBookedGarage] = useState<string | null>(null);
+export default function HomePage() {
+  const [garages, setGarages] = useState<Garage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedGarage, setSelectedGarage] = useState<Garage|null>(null)
+  const [showBooking, setShowBooking] = useState(false)
+  const [bookingLang, setBookingLang] = useState('en')
+  const [form, setForm] = useState({ name: '', phone: '', car_reg: '', service: 'MOT', note: '' })
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedTime, setSelectedTime] = useState('10:00')
+  const [bookedSlots, setBookedSlots] = useState<string[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [bookingSuccess, setBookingSuccess] = useState<any>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const getNext14Days = () => {
+    const days = []
+    for (let i=0;i<14;i++){ const d=new Date(); d.setDate(d.getDate()+i); days.push({ date:d.toISOString().split('T')[0], day:d.getDate(), month:d.toLocaleString('en',{month:'short'}), weekday:d.toLocaleString('en',{weekday:'short'}), isToday:i===0, isWeekend:d.getDay()===0||d.getDay()===6 }) }
+    return days
+  }
+  const next14Days = getNext14Days()
+
+  useEffect(()=>{ fetchGarages() }, [])
+  useEffect(()=>{ if(selectedGarage && selectedDate) fetchBookedSlots() }, [selectedGarage, selectedDate])
+
+  const fetchGarages = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('garages').select('*').eq('verified', true).order('sponsored',{ascending:false})
+    if(data) setGarages(data)
+    setLoading(false)
+  }
+
+  const fetchBookedSlots = async () => {
+    if(!selectedGarage) return
+    setLoadingSlots(true)
+    const { data } = await supabase.from('bookings').select('booking_time').eq('garage_id', selectedGarage.id).eq('booking_date', selectedDate).neq('status','cancelled')
+    if(data){ setBookedSlots(data.map((b:any)=>b.booking_time.slice(0,5))) }
+    setLoadingSlots(false)
+  }
+
+  const handleBooking = async () => {
+    if(!selectedGarage) return
+    if(!form.name || !form.phone || !form.car_reg){ alert('Please fill Name, Phone, Car Reg'); return }
+    setSubmitting(true)
+    try{
+      const res = await fetch('/api/bookings', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          garage_id:selectedGarage.id, customer_name:form.name, customer_phone:form.phone,
+          car_reg:form.car_reg, service_type:form.service, description:form.note,
+          preferred_language:bookingLang, booking_date:selectedDate, booking_time:selectedTime
+        })
+      })
+      const data = await res.json()
+      if(data.success){ setBookingSuccess(data); setShowBooking(false); setForm({name:'',phone:'',car_reg:'',service:'MOT',note:''}); setBookedSlots([...bookedSlots, selectedTime]) }
+      else alert('Error: '+data.error)
+    }catch(e:any){ alert('Error: '+e.message) }
+    setSubmitting(false)
+  }
 
   return (
-    <div className="min-h-screen bg-[#08080a] text-zinc-100 selection:bg-yellow-400 selection:text-black antialiased">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'); *{font-family:'Geist',sans-serif} .mono{font-family:'Geist Mono',monospace}`}</style>
+    <div className="min-h-screen bg-[#08080a] text-white">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap'); *{font-family:Geist,sans-serif}`}</style>
+      <div className="bg-[#facc15] text-black text-center py-2 px-4 text-xs font-bold">🎤 AI Voice: Customer speaks Urdu? AI replies Urdu | Polish? AI replies Polish | SMS + WhatsApp in customer's language + English</div>
+      <header className="border-b border-zinc-800 p-4"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-2"><div className="h-8 w-8 bg-[#facc15] rounded-lg grid place-items-center text-black font-bold">AI</div><span className="font-bold text-lg">GARAGE</span><span className="text-xs bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-full text-zinc-400">AI VOICE • 20 Languages</span></div><div className="text-xs text-zinc-500">Glasgow • {garages.length} Garages</div></div></header>
 
-      {/* AI Voice Top Banner */}
-      <div className="bg-gradient-to-r from-yellow-400 to-amber-400 text-black text-center py-2 px-4 text-[12px] font-bold flex items-center justify-center gap-2">
-        <Volume2 className="h-4 w-4" />
-        <span>🔊 AI Voice - Customer ki language me baat! | Customer ki zuban me call, SMS, WhatsApp | 20 Languages Supported</span>
-        <span className="hidden sm:inline-flex ml-2 px-2 py-0.5 rounded-full bg-black text-yellow-400 text-[10px]">NEW</span>
-      </div>
-
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-zinc-800/80 bg-[#08080a]/80 backdrop-blur-xl">
-        <div className="mx-auto max-w-[1280px] px-4 h-[64px] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-yellow-400 grid place-items-center text-black font-bold">AI</div>
-            <span className="font-bold text-[18px]">GARAGE</span>
-            <span className="ml-2 px-2 py-1 rounded-full bg-yellow-400/20 border border-yellow-400/30 text-yellow-400 text-[10px] mono flex items-center gap-1"><Mic className="h-3 w-3"/>AI VOICE</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] mono text-zinc-400 hidden sm:block">20 Languages • Quote First • No Price Shock</span>
-          </div>
+      <main className="max-w-6xl mx-auto p-4 sm:p-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[28px] p-6 sm:p-10 mb-8">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Find Trusted Garages<br/><span className="text-zinc-500">in Glasgow</span></h1>
+          <p className="mt-3 text-zinc-400 text-sm max-w-2xl">Real garages from Supabase • Book via Website/App → SMS & WhatsApp confirmation in your language + English • Calls? AI answers in your language</p>
+          <div className="mt-6 flex gap-2"><select value={bookingLang} onChange={e=>setBookingLang(e.target.value)} className="h-12 px-4 rounded-full bg-black border border-zinc-800 text-sm">{Object.keys(languageNames).map(code=>(<option key={code} value={code}>{languageFlags[code]} {languageNames[code]} - I speak this</option>))}</select></div>
         </div>
-      </header>
 
-      {/* Hero */}
-      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 py-8">
-        <div className="rounded-[28px] bg-zinc-900 border border-zinc-800 p-6 sm:p-10 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-yellow-400/10 rounded-full blur-[80px]" />
-          <h1 className="text-[32px] sm:text-[48px] font-bold leading-[0.9] tracking-[-0.03em] relative">Find Trusted Garages <br/><span className="text-zinc-500">in Glasgow</span></h1>
-          <p className="mt-4 text-zinc-400 max-w-[600px] relative">AI-Powered • 20 Languages • <span className="text-yellow-400 font-bold">AI Voice in your language</span> • Quote First, Work After Confirm • Parts Choice</p>
-          
-          {/* Search + AI Voice Badge */}
-          <div className="mt-6 flex flex-col sm:flex-row gap-3 relative">
-            <div className="flex-1 h-12 rounded-full bg-black border border-zinc-800 flex items-center px-4 gap-2">
-              <Search className="h-4 w-4 text-zinc-500" />
-              <input placeholder="Postcode, e.g. G20" className="bg-transparent outline-none text-sm w-full" />
-            </div>
-            <div className="flex gap-2">
-              <div className="relative">
-                <button onClick={()=>setShowLangDropdown(!showLangDropdown)} className="h-12 px-4 rounded-full bg-black border border-zinc-800 flex items-center gap-2 text-sm">
-                  <span>{selectedLang.flag}</span> {selectedLang.name} <ChevronDown className="h-3 w-3"/>
-                </button>
-                {showLangDropdown && (
-                  <div className="absolute top-14 left-0 w-64 max-h-64 overflow-auto rounded-xl bg-zinc-900 border border-zinc-800 p-2 z-20 grid grid-cols-1 gap-1">
-                    {languages.map(l=>(
-                      <button key={l.code} onClick={()=>{setSelectedLang(l); setShowLangDropdown(false)}} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 text-sm text-left">
-                        <span>{l.flag}</span> {l.name} <span className="text-[10px] text-zinc-500 ml-auto">AI Voice</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+        {loading ? <div className="text-center py-20 text-zinc-500">Loading...</div> : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {garages.map(g=>(
+              <div key={g.id} className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-4">
+                {g.sponsored && <span className="text-[10px] font-bold bg-[#facc15] text-black px-2 py-1 rounded-full">SPONSORED</span>}
+                <div className="font-semibold mt-2">{g.name}</div>
+                <div className="text-xs text-zinc-500 mt-1">{g.address} • {g.postcode} • ⭐ {g.rating} ({g.review_count})</div>
+                <div className="flex gap-1 mt-2 flex-wrap">{(g.languages||['en']).map((lang:any)=>(<span key={lang} className="text-[10px] bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-full">{languageFlags[lang]} {languageNames[lang]||lang}</span>))}</div>
+                <div className="mt-3 p-2 bg-zinc-800/50 border border-zinc-800 rounded-xl text-[11px] text-zinc-300">🎤 AI Voice Active - Calls in customer language → SMS/WhatsApp in that language + English</div>
+                <button onClick={()=>{setSelectedGarage(g); setSelectedDate(new Date().toISOString().split('T')[0]); setShowBooking(true)}} className="mt-3 w-full h-10 rounded-full bg-[#facc15] text-black font-bold text-sm">Book Now - SMS in {languageNames[bookingLang]}</button>
               </div>
-              <button className="h-12 px-6 rounded-full bg-yellow-400 text-black font-bold text-sm">Search</button>
-            </div>
+            ))}
           </div>
+        )}
+      </main>
 
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-400 text-black text-[11px] font-bold"><Volume2 className="h-3 w-3"/> AI Voice: Urdu, Polish, Punjabi, Arabic... 20 langs</span>
-            <span className="px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-[11px] mono">No Price Shock</span>
-            <span className="px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-[11px] mono">Parts: Garage / Customer</span>
-            <span className="px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-[11px] mono">Quote → Confirm → Work</span>
-          </div>
-        </div>
-      </section>
+      {showBooking && selectedGarage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur z-50 grid place-items-center p-4 overflow-auto">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-[24px] w-full max-w-lg p-6 my-8">
+            <div className="flex justify-between items-center mb-4"><h3 className="font-bold">Book at {selectedGarage.name}</h3><button onClick={()=>setShowBooking(false)} className="h-8 w-8 rounded-full bg-zinc-800 grid place-items-center">✕</button></div>
+            
+            <div className="space-y-4">
+              <div className="p-3 bg-[#facc15]/10 border border-[#facc15]/20 rounded-xl text-xs"><div className="font-bold text-[#facc15]">You will receive:</div><div className="text-zinc-300 mt-1">✓ SMS + WhatsApp in {languageNames[bookingLang]} + English<br/>✓ Booking Ref + Drop time<br/>✓ Track link</div></div>
 
-      {/* Garage Cards */}
-      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 pb-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {garages.map(g=>(
-          <div key={g.id} className="rounded-[20px] bg-zinc-900 border border-zinc-800 overflow-hidden hover:border-zinc-700 transition">
-            <div className="relative h-[176px] overflow-hidden bg-zinc-800">
-              <img src={g.image} alt={g.name} className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-              <div className="absolute top-3 left-3 flex gap-2">
-                {g.sponsored && <span className="px-2.5 py-1 rounded-full bg-yellow-400 text-black text-[10px] font-bold mono">SPONSORED</span>}
-                <span className="px-2.5 py-1 rounded-full bg-white/90 text-black text-[10px] font-bold mono flex items-center gap-1"><ShieldCheck className="h-3 w-3"/>VERIFIED</span>
-              </div>
-              {/* AI Voice Badge - NEW */}
-              <div className="absolute top-3 right-3">
-                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-yellow-400 to-amber-400 text-black text-[10px] font-bold flex items-center gap-1 animate-pulse">
-                  <Mic className="h-3 w-3"/> AI VOICE
-                </span>
-              </div>
-              <div className="absolute bottom-3 left-3 right-3 flex justify-between">
-                <span className="px-2 py-1 rounded-full bg-black/70 backdrop-blur border border-white/10 text-white text-[11px] mono">{g.distance}</span>
-                <span className="px-2 py-1 rounded-full bg-yellow-400 text-black text-[11px] font-bold mono flex items-center gap-1"><Volume2 className="h-3 w-3"/>AI Voice • {g.languages.length} langs</span>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="font-semibold text-[15px]">{g.name}</div>
-              <div className="mt-1 flex items-center gap-2 text-[12px]">
-                <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400"/>{g.rating}</span>
-                <span className="text-zinc-500 mono">({g.reviews})</span>
-                <span className="text-zinc-400">{g.address}</span>
+              <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Your Name *" className="w-full h-11 px-4 rounded-full bg-black border border-zinc-800 text-sm" />
+              <input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Phone (+447... or 07...) *" className="w-full h-11 px-4 rounded-full bg-black border border-zinc-800 text-sm" />
+              <input value={form.car_reg} onChange={e=>setForm({...form, car_reg:e.target.value})} placeholder="Car Reg - KM66YKM *" className="w-full h-11 px-4 rounded-full bg-black border border-zinc-800 text-sm uppercase" />
+              
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Service Type *</label>
+                <select value={form.service} onChange={e=>setForm({...form, service:e.target.value})} className="w-full h-11 px-4 rounded-full bg-black border border-zinc-800 text-sm">
+                  <option>MOT</option><option>Service</option><option>Brakes</option><option>Engine Repair</option><option>Diagnostics</option><option>Clutch</option><option>Tyres</option><option>Full Service</option><option>Other</option>
+                </select>
               </div>
 
-              {/* AI Voice Explanation */}
-              <div className="mt-3 rounded-xl bg-yellow-400/10 border border-yellow-400/20 p-2.5 flex gap-2">
-                <div className="h-6 w-6 rounded-full bg-yellow-400 text-black grid place-items-center shrink-0"><Volume2 className="h-3.5 w-3.5"/></div>
-                <div className="text-[11px] leading-[1.3]">
-                  <span className="font-bold text-yellow-400">AI Voice Active:</span>
-                  <span className="text-zinc-300"> Customer ko uski language me call, SMS, WhatsApp jayega! Urdu → Urdu, Polish → Polish</span>
+              {/* NEW - Customer Note */}
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">What do you want to get done? - Note (Optional)</label>
+                <textarea value={form.note} onChange={e=>setForm({...form, note:e.target.value})} placeholder="Example: Brake pads making noise, need MOT + service, engine light on, clutch slipping etc... Write in your own language - Urdu, Punjabi, Polish, English any language!" className="w-full min-h-[80px] p-3 rounded-2xl bg-black border border-zinc-800 text-sm resize-none" rows={3}></textarea>
+                <div className="text-[10px] text-zinc-500 mt-1">💡 You can write in any language - {languageNames[bookingLang]} - AI will understand!</div>
+              </div>
+
+              <select value={bookingLang} onChange={e=>setBookingLang(e.target.value)} className="w-full h-11 px-4 rounded-full bg-black border border-zinc-800 text-sm">
+                {Object.keys(languageNames).map(code=>(<option key={code} value={code}>{languageFlags[code]} {languageNames[code]} - My Language</option>))}
+              </select>
+
+              <div>
+                <label className="text-xs text-zinc-400 mb-2 block">Select Date - Today is {new Date().toLocaleDateString('en-GB')} - Calendar</label>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {next14Days.map(d=>(
+                    <button key={d.date} onClick={()=>setSelectedDate(d.date)} className={`p-2 rounded-xl text-center border text-xs ${selectedDate===d.date ? 'bg-[#facc15] text-black border-[#facc15] font-bold' : d.isWeekend ? 'bg-zinc-800/50 border-zinc-800 text-zinc-500' : 'bg-black border-zinc-800 hover:border-zinc-700'}`}>
+                      <div className="text-[10px]">{d.weekday}</div><div className="text-sm font-bold">{d.day}</div><div className="text-[9px]">{d.month}</div>{d.isToday && <div className="text-[8px] mt-0.5 bg-[#facc15] text-black px-1 rounded-full">TODAY</div>}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {g.languages.map((l:any)=>(
-                  <span key={l.code} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-[11px]"><span>{l.flag}</span>{l.name}</span>
-                ))}
+              <div>
+                <label className="text-xs text-zinc-400 mb-2 block flex justify-between"><span>Available Times for {selectedDate} {selectedDate===new Date().toISOString().split('T')[0] && '(Today)'}</span>{loadingSlots && <span className="text-[#facc15]">Checking...</span>}</label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-auto p-1">
+                  {allTimeSlots.map(time=>{
+                    const isBooked=bookedSlots.includes(time); const isSelected=selectedTime===time; const hour=parseInt(time.split(':')[0]); const isPast=selectedDate===new Date().toISOString().split('T')[0] && hour < new Date().getHours(); const disabled=isBooked||isPast;
+                    return <button key={time} onClick={()=>!disabled && setSelectedTime(time)} disabled={disabled} className={`h-10 rounded-full text-xs font-medium border ${isSelected ? 'bg-[#facc15] text-black border-[#facc15] font-bold' : disabled ? 'bg-zinc-900 border-zinc-800 text-zinc-600 line-through cursor-not-allowed' : 'bg-black border-zinc-800 hover:border-zinc-600 text-white'}`}>{time} {isBooked ? '✕' : isPast ? '✕' : '○'}</button>
+                  })}
+                </div>
+                <div className="flex gap-3 mt-2 text-[10px] text-zinc-500"><span>🟡 Selected</span><span>○ Available</span><span>✕ Booked/Past</span></div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <button onClick={()=>setBookedGarage(g.name)} className="flex-1 h-10 rounded-full bg-yellow-400 text-black font-bold text-[13px]">Book Now - Quote First</button>
-                <button className="h-10 w-10 rounded-full bg-zinc-800 border border-zinc-700 grid place-items-center"><Phone className="h-4 w-4"/></button>
-              </div>
+
+              <button onClick={handleBooking} disabled={submitting || bookedSlots.includes(selectedTime)} className="w-full h-12 rounded-full bg-[#facc15] text-black font-bold disabled:opacity-50">{submitting ? 'Booking...' : `Confirm - ${selectedDate} at ${selectedTime} - SMS in ${languageNames[bookingLang]} + English`}</button>
             </div>
           </div>
-        ))}
-      </section>
-
-      {/* For Garage Marketing */}
-      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 pb-20">
-        <div className="rounded-[24px] bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 p-6 sm:p-8">
-          <h3 className="text-xl font-bold">Garage Owner? Get More Customers with AI Voice Marketing!</h3>
-          <p className="text-sm text-zinc-400 mt-2">Free listing vs Boost £99/mo - Top ranking + FB/Insta ads + WhatsApp push in 20 languages + AI Voice calls</p>
-          <div className="mt-4 grid sm:grid-cols-2 gap-4">
-            <div className="rounded-xl bg-black border border-zinc-800 p-4">
-              <div className="font-bold">Free - £0</div>
-              <div className="text-xs text-zinc-500 mt-1">Basic listing, Quote system, 20 languages badge, AI Voice badge</div>
-            </div>
-            <div className="rounded-xl bg-yellow-400 text-black p-4">
-              <div className="font-bold flex items-center gap-2">Marketing Boost - £99/mo <span className="px-2 py-0.5 rounded-full bg-black text-yellow-400 text-[10px]">POPULAR</span></div>
-              <div className="text-xs mt-1 font-medium">Top 3 ranking + FB/Insta ads + WhatsApp 500 + AI video + AI Voice calls in customer language</div>
-              <div className="mt-2 text-[11px]">🔊 AI Voice: Customer ki language me automatic call!</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {bookedGarage && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white text-black px-5 h-12 flex items-center gap-3 shadow-2xl text-[13px] font-medium">
-          <div className="h-7 w-7 rounded-full bg-black text-white grid place-items-center">✓</div>
-          Quote requested from {bookedGarage} - AI will call you in {selectedLang.name}!
-          <button onClick={()=>setBookedGarage(null)} className="ml-2 h-6 w-6 rounded-full bg-zinc-100 grid place-items-center"><X className="h-3.5 w-3.5"/></button>
         </div>
       )}
+
+      {bookingSuccess && (<div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-white text-black px-6 py-4 rounded-2xl shadow-2xl max-w-md w-[90%] z-50"><div className="font-bold">✅ Booking Confirmed! Ref: {bookingSuccess.booking_ref}</div><div className="text-xs mt-2 whitespace-pre-wrap">{bookingSuccess.message}</div><button onClick={()=>setBookingSuccess(null)} className="mt-3 w-full h-10 rounded-full bg-black text-white font-bold text-sm">Close</button></div>)}
     </div>
   )
 }
