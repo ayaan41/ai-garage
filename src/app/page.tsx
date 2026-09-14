@@ -1,145 +1,123 @@
-"use client"
+"use client";
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "./lib/supabaseClient";
 
 const GARAGES = [
-  { id: 1, name: "QuickFit Cumbernauld", dist: "0.3 miles", mot: 45, service: 120, time: "Today 3:00 PM", phone: "447123456789" },
-  { id: 2, name: "Glasgow MOT Centre", dist: "0.8 miles", mot: 49, service: 135, time: "Tomorrow 9:00 AM", phone: "447123456789" },
-  { id: 3, name: "AutoCare G20", dist: "1.2 miles", mot: 42, service: 110, time: "Today 4:30 PM", phone: "447123456789" },
-]
+  { id: 1, name: "QuickFit Cumbernauld", distance: "0.3 miles", time: "Today 3:00 PM", motPrice: 45, servicePrice: 120, phone: "447123456789" },
+  { id: 2, name: "Glasgow MOT Centre", distance: "0.8 miles", time: "Tomorrow 9:00 AM", motPrice: 49, servicePrice: 135, phone: "447123456789" },
+  { id: 3, name: "AutoCare G20", distance: "1.2 miles", time: "Today 4:30 PM", motPrice: 42, servicePrice: 110, phone: "447123456789" },
+];
 
-export default function Page() {
-  const [booked, setBooked] = useState(false);
-  const [selected, setSelected] = useState<any>(null);
+export default function Home() {
+  const [selectedGarage, setSelectedGarage] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", carReg: "", service: "MOT", date: "" });
+  const [form, setForm] = useState({ name: "", phone: "", carReg: "", serviceType: "MOT" });
 
-  const openBook = (g: any) => {
-    setSelected(g);
+  const openBook = (garage: any) => {
+    setSelectedGarage(garage);
     setShowModal(true);
-    setForm({ name: "", phone: "", carReg: "", service: "MOT", date: g.time });
-  }
+  };
 
   const handleWhatsApp = () => {
-    const price = form.service === "MOT" ? selected.mot : form.service === "Service" ? selected.service : selected.mot + selected.service;
-    const msg = `Hi ${selected.name}! 👋%0A%0AI want to book *${form.service}*%0A%0A🚗 Car: ${form.carReg || "SK19 XYZ"}%0A👤 Name: ${form.name || "Customer"}%0A📅 When: ${form.date || selected.time}%0A💷 Price: £${price}%0A%0APostcode: G20 6`;
-    window.open(`https://wa.me/${selected.phone}?text=${msg}`, "_blank");
-  }
+    if (!form.name || !form.phone) { alert("Name aur Phone likho pehle!"); return; }
+    const msg = `Hi ${selectedGarage.name}! Booking:\nName: ${form.name}\nPhone: ${form.phone}\nCar: ${form.carReg}\nService: ${form.serviceType}\nTime: ${selectedGarage.time}\nFrom: AI Garage`;
+    const url = `https://wa.me/${selectedGarage.phone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank");
+    setShowModal(false);
+  };
 
-  const handleConfirm = async () => {
-    if(!form.name || !form.phone || !form.carReg){
-      alert("Please fill Name, Phone, Car Reg");
-      return;
-    }
+  const handleSystemBook = async () => {
+    if (!form.name || !form.phone) { alert("Name aur Phone likho pehle!"); return; }
     setLoading(true);
-    const { error } = await supabase.from('bookings').insert([{
-      garage_name: selected.name,
-      customer_name: form.name,
-      customer_phone: form.phone,
-      car_reg: form.carReg,
-      service_type: form.service,
-      booking_time: form.date,
-      price: form.service === "MOT" ? selected.mot : form.service === "Service" ? selected.service : selected.mot + selected.service,
-      status: 'pending'
-    }]);
-
-    setLoading(false);
-    if(!error){
+    try {
+      // Only send columns that exist in your table - safe insert
+      const { error } = await supabase.from("bookings").insert([
+        {
+          customer_name: form.name,
+          phone: form.phone,
+          car_reg: form.carReg,
+          service_type: form.serviceType,
+          garage_name: selectedGarage.name,
+          status: "pending",
+        },
+      ]);
+      if (error) throw error;
+      alert("✅ Booking saved! Garage dashboard pe jayegi");
       setShowModal(false);
-      setBooked(true);
-    } else {
-      alert("Error: " + error.message);
+    } catch (e: any) {
+      alert("Error: " + e.message);
     }
-  }
-
-  if(booked) return (
-    <div className="p-10 text-center max-w-xl mx-auto">
-      <h1 className="text-3xl font-bold">Request Sent to {selected.name}!</h1>
-      <p className="mt-4">Garage approve karega to tumhe message aayega:</p>
-      <p className="mt-2 bg-green-100 p-3 font-bold rounded">“Tumhari booking confirm ho gayi hai - {selected.time}”</p>
-      <p className="mt-4 text-sm text-green-600">✅ Real booking Supabase me save ho gayi! Ab Garage Dashboard pe jao.</p>
-      <div className="flex gap-2 justify-center mt-6">
-        <button onClick={()=>setBooked(false)} className="bg-black text-white px-6 py-2 rounded">Back</button>
-        <a href="/garage" className="bg-green-600 text-white px-6 py-2 rounded">Go to Garage →</a>
-      </div>
-    </div>
-  )
+    setLoading(false);
+  };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold">AI Garage - Customer LIVE</h1>
-      <p className="text-gray-600">Postcode: G20 6 | Price Compare | Call / WhatsApp Book 🔴 LIVE</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-        {GARAGES.map(g => (
-          <div key={g.id} className="border rounded-xl p-4 bg-white">
-            <h3 className="font-bold">{g.name}</h3>
-            <p className="text-sm text-gray-500">{g.dist} - {g.time}</p>
-            <p className="mt-2">MOT £{g.mot} | Service £{g.service}</p>
-            <button onClick={()=>openBook(g)} className="mt-4 w-full bg-black text-white py-2 rounded hover:bg-gray-800">
-              Book Now
-            </button>
-          </div>
-        ))}
+    <div style={{ background: "black", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+        <h1 style={{ color: "white", fontSize: "28px", fontWeight: "bold" }}>AI Garage - Customer LIVE</h1>
+        <p style={{ color: "#888", marginBottom: "30px" }}>Postcode: G20 6 | Price Compare | Call / WhatsApp Book 🔴 LIVE</p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
+          {GARAGES.map((g) => (
+            <div key={g.id} style={{ background: "white", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ color: "black", fontWeight: "bold", margin: 0 }}>{g.name}</h3>
+              <p style={{ color: "#555", fontSize: "14px", margin: "5px 0" }}>{g.distance} - {g.time}</p>
+              <p style={{ color: "#666", fontSize: "14px" }}>MOT £{g.motPrice} | Service £{g.servicePrice}</p>
+              <button onClick={() => openBook(g)} style={{ width: "100%", background: "black", color: "white", padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", marginTop: "15px", fontWeight: "bold" }}>
+                Book Now
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* DUAL BOOKING MODAL */}
-      {showModal && selected && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[24px] w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-xl font-bold">{selected.name}</h2>
-                <p className="text-sm text-gray-500 mt-1">MOT £{selected.mot} | Service £{selected.service} • {selected.dist}</p>
-              </div>
-              <button onClick={()=>setShowModal(false)} className="text-gray-400 text-2xl">×</button>
+      {showModal && selectedGarage && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "20px" }}>
+          <div style={{ background: "white", borderRadius: "20px", padding: "25px", width: "100%", maxWidth: "420px", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ color: "black", fontWeight: "bold", margin: 0 }}>{selectedGarage.name}</h2>
+              <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
+            </div>
+            <p style={{ color: "#555", fontSize: "14px", margin: "5px 0 20px" }}>MOT £{selectedGarage.motPrice} | Service £{selectedGarage.servicePrice} • {selectedGarage.distance}</p>
+
+            <input placeholder="Your Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #ddd", marginBottom: "12px", color: "black", background: "white" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+              <input placeholder="Phone (07...)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} style={{ padding: "12px", borderRadius: "10px", border: "1px solid #ddd", color: "black", background: "white" }} />
+              <input placeholder="CAR REG (SK19...)" value={form.carReg} onChange={(e) => setForm({ ...form, carReg: e.target.value })} style={{ padding: "12px", borderRadius: "10px", border: "1px solid #ddd", color: "black", background: "white" }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+              <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value })} style={{ padding: "12px", borderRadius: "10px", border: "1px solid #ddd", color: "black", background: "white" }}>
+                <option>MOT</option>
+                <option>Service</option>
+                <option>MOT + Service</option>
+              </select>
+              <input value={selectedGarage.time} readOnly style={{ padding: "12px", borderRadius: "10px", border: "1px solid #ddd", color: "#333", background: "#f5f5f5" }} />
             </div>
 
-            {/* Form Fields - Shared for both options */}
-            <div className="mt-5 space-y-3">
-              <input value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Your Name" className="w-full border rounded-lg px-3 py-2.5 text-sm" />
-              <div className="grid grid-cols-2 gap-3">
-                <input value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} placeholder="Phone (07...)" className="w-full border rounded-lg px-3 py-2.5 text-sm" />
-                <input value={form.carReg} onChange={e=>setForm({...form, carReg: e.target.value.toUpperCase()})} placeholder="Car Reg (SK19...)" className="w-full border rounded-lg px-3 py-2.5 text-sm uppercase" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <select value={form.service} onChange={e=>setForm({...form, service: e.target.value})} className="w-full border rounded-lg px-3 py-2.5 text-sm">
-                  <option>MOT</option>
-                  <option>Service</option>
-                  <option>MOT + Service</option>
-                </select>
-                <input value={form.date} onChange={e=>setForm({...form, date: e.target.value})} placeholder={selected.time} className="w-full border rounded-lg px-3 py-2.5 text-sm" />
-              </div>
-            </div>
-
-            {/* Option 1 - Fast WhatsApp */}
-            <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-xs font-bold text-green-700">⚡ FAST • 30 SEC • RECOMMENDED ON MOBILE</p>
-              <button onClick={handleWhatsApp} className="mt-3 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-sm">
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "12px", marginBottom: "15px" }}>
+              <p style={{ color: "#15803d", fontSize: "12px", fontWeight: "bold", margin: "0 0 10px" }}>⚡ FAST • 30 SEC • RECOMMENDED ON MOBILE</p>
+              <button onClick={handleWhatsApp} style={{ width: "100%", background: "#16a34a", color: "white", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
                 Book via WhatsApp Fast ⚡
               </button>
-              <p className="text-[11px] text-green-700 mt-2 text-center">Direct message to garage - instant reply</p>
+              <p style={{ color: "#15803d", fontSize: "11px", textAlign: "center", margin: "8px 0 0" }}>Direct message to garage - instant reply</p>
             </div>
 
-            <div className="flex items-center gap-3 my-4">
-              <div className="h-[1px] bg-gray-200 flex-1"></div>
-              <span className="text-xs bg-black text-white px-3 py-1 rounded-full">OR</span>
-              <div className="h-[1px] bg-gray-200 flex-1"></div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "15px 0" }}>
+              <div style={{ flex: 1, height: "1px", background: "#ddd" }}></div>
+              <span style={{ background: "black", color: "white", borderRadius: "20px", padding: "4px 12px", fontSize: "12px" }}>OR</span>
+              <div style={{ flex: 1, height: "1px", background: "#ddd" }}></div>
             </div>
 
-            {/* Option 2 - Pro System Booking */}
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-xs font-bold text-gray-700">🔒 PRO • SAVE TO SYSTEM • TRACKING</p>
-              <button disabled={loading} onClick={handleConfirm} className="mt-3 w-full bg-black hover:bg-gray-800 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            <div style={{ background: "#f9f9f9", border: "1px solid #eee", borderRadius: "12px", padding: "12px" }}>
+              <p style={{ color: "#444", fontSize: "12px", fontWeight: "bold", margin: "0 0 10px" }}>🔒 PRO • SAVE TO SYSTEM • TRACKING</p>
+              <button onClick={handleSystemBook} disabled={loading} style={{ width: "100%", background: "black", color: "white", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
                 {loading ? "Saving..." : "Confirm Booking - Save to System"}
               </button>
-              <p className="text-[11px] text-gray-500 mt-2 text-center">Saved in Supabase → Garage dashboard pe jayega</p>
+              <p style={{ color: "#888", fontSize: "11px", textAlign: "center", margin: "8px 0 0" }}>Saved in Supabase → Garage dashboard pe jayega</p>
             </div>
-
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
