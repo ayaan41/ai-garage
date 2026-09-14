@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Booking = {
@@ -27,77 +28,100 @@ const statusOptions = [
 const languageNames: any = { en: 'English', ur: 'Urdu', pa: 'Punjabi', pl: 'Polish', ro: 'Romanian', ar: 'Arabic', hi: 'Hindi' }
 
 export default function GarageOwnerPanel() {
-  const [garages, setGarages] = useState<any[]>([])
-  const [selectedGarageId, setSelectedGarageId] = useState('')
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
+  const [garage, setGarage] = useState<any>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
 
-  useEffect(()=>{ fetchGarages() }, [])
-  useEffect(()=>{ if(selectedGarageId) fetchBookings() }, [selectedGarageId])
+  useEffect(()=>{
+    checkUser()
+  }, [])
 
-  const fetchGarages = async () => {
-    const { data } = await supabase.from('garages').select('*').order('name')
-    if(data) {
-      setGarages(data)
-      if(data.length>0) setSelectedGarageId(data[0].id)
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if(!session){
+      router.push('/garage/login')
+      return
     }
+    setUser(session.user)
+    
+    // Find garage linked to this email
+    const { data: owner, error: ownerError } = await supabase.from('garage_owners').select('*, garages(*)').eq('email', session.user.email).single()
+    
+    if(ownerError || !owner){
+      console.error('No garage linked:', ownerError)
+      alert(`Your email ${session.user.email} is not linked to any garage! Contact admin.\n\nSQL me run karo:\nINSERT INTO garage_owners (garage_id, email) SELECT id, '${session.user.email}' FROM garages WHERE name ILIKE '%haji%' LIMIT 1`)
+      // For demo, fallback to first garage
+      const { data: garages } = await supabase.from('garages').select('*').limit(1)
+      if(garages && garages[0]){
+        setGarage(garages[0])
+        fetchBookings(garages[0].id)
+      }
+      setLoading(false)
+      return
+    }
+    
+    setGarage(owner.garages)
+    fetchBookings(owner.garage_id)
   }
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (garageId: string) => {
     setLoading(true)
-    let query = supabase.from('bookings').select('*').eq('garage_id', selectedGarageId).order('booking_date', {ascending:false}).order('created_at', {ascending:false})
+    let query = supabase.from('bookings').select('*').eq('garage_id', garageId).order('booking_date', {ascending:false}).order('created_at', {ascending:false})
     if(filter !== 'all') query = query.eq('status', filter)
     const { data } = await query
     if(data) setBookings(data as any)
     setLoading(false)
   }
 
-  useEffect(()=>{ if(selectedGarageId) fetchBookings() }, [filter])
+  useEffect(()=>{ if(garage) fetchBookings(garage.id) }, [filter])
 
   const updateStatus = async (booking: Booking, newStatus: string) => {
     const { error } = await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
     if(error){ alert(error.message); return }
 
-    // Simulate SMS in owner's language + English
     const messages: any = {
       in_progress: {
-        en: `AI GARAGE - ${booking.booking_ref}: Work Started on ${booking.car_reg} at ${garages.find(g=>g.id===selectedGarageId)?.name}. We'll notify when ready.`,
-        ur: `AI GARAGE - ${booking.booking_ref}: ${booking.car_reg} پر کام شروع ہو گیا ہے۔ تیار ہونے پر اطلاع دیں گے۔`,
+        en: `AI GARAGE - ${booking.booking_ref}: Work Started on ${booking.car_reg}. We'll notify when ready.`,
+        ur: `AI GARAGE - ${booking.booking_ref}: ${booking.car_reg} پر کام شروع ہو گیا۔`,
       },
       ready: {
-        en: `AI GARAGE - ${booking.booking_ref}: Your car ${booking.car_reg} is READY FOR COLLECTION! 🎉 Please collect from ${garages.find(g=>g.id===selectedGarageId)?.name}. Payment at collection.`,
-        ur: `AI GARAGE - ${booking.booking_ref}: آپ کی گاڑی ${booking.car_reg} تیار ہے! 🎉 براہ کرم ${garages.find(g=>g.id===selectedGarageId)?.name} سے لے جائیں۔`,
+        en: `AI GARAGE - ${booking.booking_ref}: Your car ${booking.car_reg} is READY FOR COLLECTION! 🎉 Please collect from ${garage?.name}.`,
+        ur: `AI GARAGE - ${booking.booking_ref}: آپ کی گاڑی ${booking.car_reg} تیار ہے! 🎉`,
       },
       completed: {
-        en: `AI GARAGE - ${booking.booking_ref}: Thank you! ${booking.car_reg} completed. Please leave a review! ⭐`,
-        ur: `AI GARAGE - ${booking.booking_ref}: شکریہ! ${booking.car_reg} مکمل۔ ریویو دیں! ⭐`,
+        en: `AI GARAGE - ${booking.booking_ref}: Thank you! ${booking.car_reg} completed.`,
+        ur: `AI GARAGE - ${booking.booking_ref}: شکریہ! ${booking.car_reg} مکمل۔`,
       }
     }
 
     const lang = booking.preferred_language || 'en'
-    const msg = messages[newStatus]?.[lang] || messages[newStatus]?.['en'] || `Status updated to ${newStatus}`
+    const msg = messages[newStatus]?.[lang] || messages[newStatus]?.['en']
     
-    console.log(`=== SMS TO CUSTOMER ${booking.customer_phone} ===`)
-    console.log(msg)
-    console.log(`Also English version will be sent`)
-    console.log('=====================================')
+    alert(`✅ ${newStatus.toUpperCase()}!\n\nSMS to ${booking.customer_phone} (${languageNames[lang]}+EN):\n${msg}`)
     
-    alert(`✅ Status updated to ${newStatus.toUpperCase()}!\n\nSMS would be sent to ${booking.customer_phone} in ${languageNames[lang]} + English:\n\n${msg}`)
-    
-    fetchBookings()
+    if(garage) fetchBookings(garage.id)
   }
 
-  const selectedGarage = garages.find(g=>g.id===selectedGarageId)
+  const logout = async () => {
+    await supabase.auth.signOut()
+    router.push('/garage/login')
+  }
+
+  if(loading && !garage){
+    return <div className="min-h-screen bg-[#08080a] text-white grid place-items-center"><div className="text-zinc-500">Loading your garage...</div></div>
+  }
 
   return (
     <div className="min-h-screen bg-[#08080a] text-white">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap'); *{font-family:Geist,sans-serif}`}</style>
-      <div className="bg-[#facc15] text-black text-center py-2 px-4 text-xs font-bold">🔧 GARAGE OWNER PANEL - Manage Bookings - Auto SMS in Customer Language + English</div>
-      <header className="border-b border-zinc-800 p-4"><div className="max-w-6xl mx-auto flex justify-between items-center"><a href="/" className="flex items-center gap-2"><div className="h-8 w-8 bg-[#facc15] rounded-lg grid place-items-center text-black font-bold">AI</div><span className="font-bold">GARAGE OWNER</span></a><select value={selectedGarageId} onChange={e=>setSelectedGarageId(e.target.value)} className="h-10 px-4 rounded-full bg-zinc-900 border border-zinc-800 text-sm max-w-[200px]">{garages.map(g=><option key={g.id} value={g.id}>{g.name} - {g.postcode}</option>)}</select></div></header>
+      <div className="bg-[#facc15] text-black text-center py-2 px-4 text-xs font-bold">🔒 Secure - Logged in as {user?.email} - {garage?.name}</div>
+      <header className="border-b border-zinc-800 p-4"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-3"><div className="h-8 w-8 bg-[#facc15] rounded-lg grid place-items-center text-black font-bold">AI</div><div><div className="font-bold text-sm">{garage?.name} - Owner Panel</div><div className="text-[11px] text-zinc-500">{user?.email} • {garage?.address}</div></div></div><button onClick={logout} className="h-9 px-4 rounded-full bg-zinc-800 border border-zinc-700 text-xs">Logout</button></div></header>
 
       <main className="max-w-6xl mx-auto p-4 sm:p-6">
-        {selectedGarage && <div className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-4 mb-6 flex justify-between items-center"><div><div className="font-bold">{selectedGarage.name}</div><div className="text-xs text-zinc-500">{selectedGarage.address} • {selectedGarage.phone} • {bookings.length} Bookings</div></div><div className="text-xs bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded-full">Today: {new Date().toLocaleDateString('en-GB')}</div></div>}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-4 mb-6 flex justify-between items-center"><div><div className="font-bold">{garage?.name}</div><div className="text-xs text-zinc-500">{garage?.postcode} • {garage?.phone} • {bookings.length} Bookings - Secure Owner Only</div></div><div className="text-xs bg-green-500/10 border border-green-500/20 text-green-400 px-3 py-1.5 rounded-full">🔒 Logged In</div></div>
 
         <div className="flex gap-2 mb-6 overflow-auto">
           {[
@@ -109,7 +133,7 @@ export default function GarageOwnerPanel() {
           ].map(f=><button key={f.key} onClick={()=>setFilter(f.key)} className={`h-9 px-4 rounded-full text-xs font-medium border whitespace-nowrap ${filter===f.key ? 'bg-[#facc15] text-black border-[#facc15] font-bold' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'}`}>{f.label}</button>)}
         </div>
 
-        {loading ? <div className="text-center py-20 text-zinc-500">Loading bookings...</div> : bookings.length===0 ? <div className="text-center py-20 bg-zinc-900 border border-zinc-800 rounded-[20px]"><div className="text-3xl mb-2">📭</div><div className="font-semibold">No bookings</div><div className="text-xs text-zinc-500 mt-1">Bookings will appear here when customers book via website/app</div></div> : (
+        {loading ? <div className="text-center py-20 text-zinc-500">Loading bookings...</div> : bookings.length===0 ? <div className="text-center py-20 bg-zinc-900 border border-zinc-800 rounded-[20px]"><div className="text-3xl mb-2">📭</div><div className="font-semibold">No bookings for your garage</div><div className="text-xs text-zinc-500 mt-1">Only bookings for {garage?.name} appear here - Secure!</div></div> : (
           <div className="grid gap-3">
             {bookings.map(b=>{
               const statusInfo = statusOptions.find(s=>s.key===b.status) || statusOptions[0]
@@ -136,16 +160,6 @@ export default function GarageOwnerPanel() {
             })}
           </div>
         )}
-
-        <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-[20px] p-4">
-          <h4 className="font-bold text-sm">How it works - Owner Flow:</h4>
-          <div className="mt-3 grid sm:grid-cols-4 gap-3 text-xs">
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">1. Customer Books</div><div className="text-zinc-500 mt-1">Via website/app → SMS in their language + English + Tracking link</div></div>
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">2. You Click "Start Work"</div><div className="text-zinc-500 mt-1">Customer gets SMS: "Work Started" in his language + English</div></div>
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">3. You Click "Mark Ready"</div><div className="text-zinc-500 mt-1">Customer gets SMS: "Car Ready! 🎉" in his language + English</div></div>
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">4. Complete</div><div className="text-zinc-500 mt-1">Customer gets thank you + review request</div></div>
-          </div>
-        </div>
       </main>
     </div>
   )

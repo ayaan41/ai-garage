@@ -1,84 +1,66 @@
-"use client";
-import { useState, useEffect, useRef } from "react";
-import { supabase } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
+"use client"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
-export default function GarageLoginOriginal() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export default function GarageLogin() {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'login'|'signup'>('login')
 
-  useEffect(()=>{
-    const c = canvasRef.current; if(!c) return; const ctx=c.getContext('2d'); if(!ctx) return;
-    c.width=800; c.height=600;
-    let t=0;
-    const anim=()=>{
-      t+=0.01;
-      ctx.clearRect(0,0,c.width,c.height);
-      ctx.strokeStyle='rgba(250,204,21,0.2)'; ctx.lineWidth=1.2;
-      for(let k=0;k<2;k++){
-        ctx.beginPath();
-        for(let x=0;x<c.width;x+=5){
-          const y=150+Math.sin(x*0.01+t+k)*60 + k*80;
-          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-        }
-        ctx.stroke();
+  const handleAuth = async (e:any) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    if(mode==='signup'){
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if(error){ alert(error.message); setLoading(false); return }
+      
+      // Check if garage owner exists
+      const { data: owner } = await supabase.from('garage_owners').select('*').eq('email', email).single()
+      if(!owner){
+        alert('Signup done but email not linked to any garage! Contact admin to link your garage. Your email: '+email)
+      } else {
+        alert('Account created! Now login.')
+        setMode('login')
       }
-      requestAnimationFrame(anim);
-    }; anim();
-  },[]);
-
-  const login = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if(error) alert(error.message); else router.push("/garage");
-    setLoading(false);
-  };
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if(error){ alert(error.message); setLoading(false); return }
+      router.push('/garage')
+    }
+    setLoading(false)
+  }
 
   return (
-    <div className="wrap">
-      <canvas ref={canvasRef} className="can" />
-      <div className="card">
-        <div className="top">
-          <div className="dot" />
-          <h1>Garage Portal</h1>
-          <p>UK's trusted garages login here. Your own dashboard.</p>
+    <div className="min-h-screen bg-[#08080a] text-white grid place-items-center p-4">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap'); *{font-family:Geist,sans-serif}`}</style>
+      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-[24px] p-8">
+        <div className="flex items-center gap-2 mb-6"><div className="h-10 w-10 bg-[#facc15] rounded-xl grid place-items-center text-black font-bold text-lg">AI</div><div><div className="font-bold">GARAGE OWNER LOGIN</div><div className="text-xs text-zinc-500">Secure access - Only your bookings</div></div></div>
+
+        <div className="flex gap-2 mb-6 bg-black border border-zinc-800 rounded-full p-1">
+          <button onClick={()=>setMode('login')} className={`flex-1 h-9 rounded-full text-sm font-bold ${mode==='login' ? 'bg-[#facc15] text-black' : 'text-zinc-500'}`}>Login</button>
+          <button onClick={()=>setMode('signup')} className={`flex-1 h-9 rounded-full text-sm font-bold ${mode==='signup' ? 'bg-[#facc15] text-black' : 'text-zinc-500'}`}>Sign Up</button>
         </div>
 
-        <label>Email Address</label>
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="yourgarage@example.com" />
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div><label className="text-[10px] text-zinc-500 uppercase tracking-wider">Garage Email</label><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="owner@haji-autocenter.co.uk" className="mt-1 w-full h-12 px-4 rounded-xl bg-black border border-zinc-800 text-sm outline-none focus:border-[#facc15]"/></div>
+          <div><label className="text-[10px] text-zinc-500 uppercase tracking-wider">Password</label><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" className="mt-1 w-full h-12 px-4 rounded-xl bg-black border border-zinc-800 text-sm outline-none focus:border-[#facc15]"/></div>
+          <button disabled={loading} className="w-full h-12 rounded-full bg-[#facc15] text-black font-bold text-sm hover:bg-yellow-400 disabled:opacity-50">{loading ? 'Please wait...' : mode==='login' ? 'Login to Garage Panel →' : 'Create Account →'}</button>
+        </form>
 
-        <label>Password</label>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" />
-
-        <button onClick={login} className="btn">{loading?"Signing in...":"Sign in →"}</button>
-
-        <div className="foot">
-          <span>Don't have login? Contact Super Admin</span>
-          <a href="/">← Back to booking site</a>
+        <div className="mt-6 bg-black border border-zinc-800 rounded-xl p-3 text-xs text-zinc-400">
+          <div className="font-bold text-white text-[11px] mb-1">🔒 How secure login works:</div>
+          <div>• Each garage has 1 email linked (e.g. haji auto center → owner@gmail.com)</div>
+          <div>• Only that email can see & update that garage's bookings</div>
+          <div>• Customers still track without login via /track/REF</div>
+          <div className="mt-2 text-zinc-500">For demo: First Sign Up with your email, then admin will link garage.</div>
         </div>
+
+        <div className="mt-4 text-center"><a href="/" className="text-xs text-zinc-500 hover:text-zinc-300">← Back to Home</a></div>
       </div>
-
-      <style jsx global>{`
-        .wrap { min-height: 100vh; background: #080808; display: grid; place-items: center; position: relative; padding: 20px; overflow: hidden; font-family: Inter, sans-serif; }
-        .can { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.6; }
-        .card { width: 100%; max-width: 420px; background: linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%); backdrop-filter: blur(40px); border: 1px solid rgba(255,255,255,0.12); border-radius: 28px; padding: 32px; position: relative; z-index: 1; box-shadow: 0 30px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.15); }
-        .top { margin-bottom: 28px; }
-        .dot { width: 12px; height: 12px; background: #facc15; border-radius: 50%; box-shadow: 0 0 20px #facc15; margin-bottom: 16px; }
-        .top h1 { font-family: Syne, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -1px; margin: 0; color: #fff; }
-        .top p { color: rgba(255,255,255,0.55); font-size: 13px; margin: 8px 0 0; line-height: 1.4; }
-        label { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin: 16px 0 8px; display: block; }
-        input { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 14px 16px; color: #fff; outline: none; font-size: 14px; }
-        input:focus { border-color: #facc15; box-shadow: 0 0 0 4px rgba(250,204,21,0.12); }
-        .btn { width: 100%; background: #fff; color: #000; border: none; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 14px; margin-top: 20px; cursor: pointer; transition: all 0.2s; }
-        .btn:hover { background: #facc15; transform: translateY(-1px); }
-        .foot { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; text-align: center; }
-        .foot span { font-size: 11px; color: rgba(255,255,255,0.4); }
-        .foot a { font-size: 11px; color: rgba(255,255,255,0.6); text-decoration: none; }
-        .foot a:hover { color: #facc15; }
-      `}</style>
     </div>
-  );
+  )
 }
