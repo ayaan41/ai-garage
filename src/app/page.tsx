@@ -58,39 +58,39 @@ export default function Home() {
 
       {showModal && selectedGarage && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "20px" }}>
-          <div style={{ background: "#fff", borderRadius: "20px", padding: "25px", width: "100%", maxWidth: "420px" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "25px", width: "100%", maxWidth: "400px", boxSizing: "border-box", overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <h2 style={{ color: "#000", fontWeight: "900", margin: 0, fontSize: "20px" }}>{selectedGarage.name}</h2>
-              <button onClick={() => setShowModal(false)} style={{ background: "#000", color: "#fff", border: "none", fontSize: "18px", cursor: "pointer", borderRadius: "50%", width: "32px", height: "32px" }}>✕</button>
+              <button onClick={() => setShowModal(false)} style={{ background: "#000", color: "#fff", border: "none", fontSize: "18px", cursor: "pointer", borderRadius: "50%", width: "32px", height: "32px", flexShrink: 0 }}>✕</button>
             </div>
             <p style={{ color: "#000", fontSize: "14px", margin: "0 0 20px", fontWeight: "700" }}>MOT £{selectedGarage.motPrice} | Service £{selectedGarage.servicePrice} • {selectedGarage.distance}</p>
 
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="YOUR NAME" 
-              style={{ width: "100%", height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", marginBottom: "12px", color: "#000", background: "#fff", fontSize: "16px", fontWeight: "900" }} />
+              style={{ width: "100%", height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", marginBottom: "12px", color: "#000", background: "#fff", fontSize: "16px", fontWeight: "900", boxSizing: "border-box" }} />
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }}>
               <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="PHONE 07..." 
-                style={{ height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "15px", fontWeight: "900" }} />
+                style={{ width: "100%", minWidth: 0, height: "48px", padding: "0 10px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "14px", fontWeight: "900", boxSizing: "border-box" }} />
               <input value={form.carReg} onChange={(e) => setForm({ ...form, carReg: e.target.value })} placeholder="CAR REG" 
-                style={{ height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "15px", fontWeight: "900" }} />
+                style={{ width: "100%", minWidth: 0, height: "48px", padding: "0 10px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "14px", fontWeight: "900", boxSizing: "border-box" }} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px", width: "100%", boxSizing: "border-box" }}>
               <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value })} 
-                style={{ height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "14px", fontWeight: "900" }}>
+                style={{ width: "100%", minWidth: 0, height: "48px", padding: "0 10px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#fff", fontSize: "13px", fontWeight: "900", boxSizing: "border-box" }}>
                 <option>MOT</option><option>Service</option><option>MOT + Service</option>
               </select>
-              <input value={selectedGarage.time} readOnly style={{ height: "48px", padding: "0 12px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#e5e5e5", fontSize: "13px", fontWeight: "900" }} />
+              <input value={selectedGarage.time} readOnly style={{ width: "100%", minWidth: 0, height: "48px", padding: "0 10px", borderRadius: "10px", border: "3px solid #000", color: "#000", background: "#e5e5e5", fontSize: "12px", fontWeight: "900", boxSizing: "border-box" }} />
             </div>
 
-            <div style={{ background: "#f0fdf4", border: "3px solid #16a34a", borderRadius: "12px", padding: "12px", marginBottom: "15px" }}>
+            <div style={{ background: "#f0fdf4", border: "3px solid #16a34a", borderRadius: "12px", padding: "12px", marginBottom: "15px", width: "100%", boxSizing: "border-box" }}>
               <p style={{ color: "#15803d", fontSize: "11px", fontWeight: "900", margin: "0 0 8px" }}>⚡ FAST • 30 SEC • RECOMMENDED ON MOBILE</p>
-              <button onClick={handleWhatsApp} style={{ width: "100%", background: "#16a34a", color: "#fff", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "900", fontSize: "15px" }}>Book via WhatsApp Fast ⚡</button>
+              <button onClick={handleWhatsApp} style={{ width: "100%", background: "#16a34a", color: "#fff", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "900", fontSize: "15px", boxSizing: "border-box" }}>Book via WhatsApp Fast ⚡</button>
             </div>
 
-            <div style={{ background: "#f5f5f5", border: "3px solid #000", borderRadius: "12px", padding: "12px" }}>
+            <div style={{ background: "#f5f5f5", border: "3px solid #000", borderRadius: "12px", padding: "12px", width: "100%", boxSizing: "border-box" }}>
               <p style={{ color: "#000", fontSize: "11px", fontWeight: "900", margin: "0 0 8px" }}>🔒 PRO • SAVE TO SYSTEM</p>
-              <button onClick={handleSystemBook} disabled={loading} style={{ width: "100%", background: "#000", color: "#fff", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "900", fontSize: "15px" }}>{loading ? "Saving..." : "Confirm Booking - Save to System"}</button>
+              <button onClick={handleSystemBook} disabled={loading} style={{ width: "100%", background: "#000", color: "#fff", padding: "14px", borderRadius: "10px", border: "none", cursor: "pointer", fontWeight: "900", fontSize: "15px", boxSizing: "border-box" }}>{loading ? "Saving..." : "Confirm Booking - Save to System"}</button>
             </div>
           </div>
         </div>
