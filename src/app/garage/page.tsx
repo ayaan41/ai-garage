@@ -17,15 +17,16 @@ export default function GarageDashboard() {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("bookings").update({ status }).eq("id", id);
+  const updateStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "completed" ? "pending" : "completed";
+    await supabase.from("bookings").update({ status: newStatus }).eq("id", id);
     fetchBookings();
   };
 
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", padding: "30px 20px" }}>
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", flexWrap: "wrap", gap: "15px" }}>
           <div>
             <h1 style={{ color: "#fff", fontSize: "32px", fontWeight: "900", margin: 0 }}>🔧 Garage Dashboard</h1>
             <p style={{ color: "#888", margin: "5px 0 0" }}>QuickFit Cumbernauld - LIVE Bookings</p>
@@ -39,12 +40,12 @@ export default function GarageDashboard() {
             <p style={{ color: "#000", fontSize: "32px", fontWeight: "900", margin: "5px 0 0" }}>{bookings.length}</p>
           </div>
           <div style={{ background: "#facc15", padding: "20px", borderRadius: "15px", border: "3px solid #000" }}>
-            <p style={{ color: "#000", fontWeight: "900", fontSize: "12px", margin: 0 }}>PENDING</p>
-            <p style={{ color: "#000", fontSize: "32px", fontWeight: "900", margin: "5px 0 0" }}>{bookings.filter(b=>b.status==="pending").length}</p>
+            <p style={{ color: "#000", fontWeight: "900", fontSize: "12px", margin: 0 }}>PENDING / APPROVED</p>
+            <p style={{ color: "#000", fontSize: "32px", fontWeight: "900", margin: "5px 0 0" }}>{bookings.filter(b=> b.status !== "completed").length}</p>
           </div>
           <div style={{ background: "#22c55e", padding: "20px", borderRadius: "15px", border: "3px solid #000" }}>
             <p style={{ color: "#000", fontWeight: "900", fontSize: "12px", margin: 0 }}>COMPLETED</p>
-            <p style={{ color: "#000", fontSize: "32px", fontWeight: "900", margin: "5px 0 0" }}>{bookings.filter(b=>b.status==="completed").length}</p>
+            <p style={{ color: "#000", fontSize: "32px", fontWeight: "900", margin: "5px 0 0" }}>{bookings.filter(b=> b.status === "completed").length}</p>
           </div>
         </div>
 
@@ -72,11 +73,11 @@ export default function GarageDashboard() {
                       <td style={{ padding: "15px", color: "#000", fontWeight: "700", fontSize: "13px" }}>{b.service_type}</td>
                       <td style={{ padding: "15px", color: "#666", fontWeight: "700", fontSize: "12px" }}>{new Date(b.created_at).toLocaleString()}</td>
                       <td style={{ padding: "15px" }}>
-                        <span style={{ background: b.status==="pending"?"#facc15":b.status==="completed"?"#22c55e":"#000", color: b.status==="pending"?"#000":"#fff", padding: "5px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "900" }}>{b.status.toUpperCase()}</span>
+                        <span style={{ background: b.status==="completed"?"#22c55e":b.status==="pending"?"#facc15":"#000", color: b.status==="pending"?"#000":"#fff", padding: "5px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "900", textTransform: "uppercase" }}>{b.status}</span>
                       </td>
                       <td style={{ padding: "15px", display: "flex", gap: "5px" }}>
                         <a href={`https://wa.me/44${b.phone.substring(1)}?text=Hi ${b.customer_name}, your booking for ${b.car_reg} confirmed!`} target="_blank" style={{ background: "#16a34a", color: "#fff", padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "900", textDecoration: "none" }}>WhatsApp</a>
-                        <button onClick={() => updateStatus(b.id, b.status==="pending"?"completed":"pending")} style={{ background: "#000", color: "#fff", padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "900", border: "none", cursor: "pointer" }}>{b.status==="pending"?"Done" :"Undo"}</button>
+                        <button onClick={() => updateStatus(b.id, b.status)} style={{ background: "#000", color: "#fff", padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "900", border: "none", cursor: "pointer" }}>{b.status==="completed"?"Undo" :"Done"}</button>
                       </td>
                     </tr>
                   ))}
