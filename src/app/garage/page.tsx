@@ -1,126 +1,152 @@
-"use client";
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+"use client"
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
-export default function GarageDashboard() {
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [garage, setGarage] = useState<any>(null);
-  const [filter, setFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
+type Booking = {
+  id: string
+  booking_ref: string
+  customer_name: string
+  customer_phone: string
+  car_reg: string
+  service_type: string
+  description: string
+  booking_date: string
+  booking_time: string
+  status: string
+  preferred_language: string
+  created_at: string
+}
 
-  useEffect(() => { init(); }, []);
+const statusOptions = [
+  { key: 'confirmed', label: 'Confirmed', color: 'bg-blue-500', next: 'in_progress', nextLabel: 'Start Work 🔧' },
+  { key: 'in_progress', label: 'In Progress', color: 'bg-yellow-500 text-black', next: 'ready', nextLabel: 'Mark Ready 🎉' },
+  { key: 'ready', label: 'Ready for Collection', color: 'bg-green-500', next: 'completed', nextLabel: 'Complete ✅' },
+  { key: 'completed', label: 'Completed', color: 'bg-zinc-600', next: null, nextLabel: null },
+]
 
-  const init = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { window.location.href = "/garage/login"; return; }
+const languageNames: any = { en: 'English', ur: 'Urdu', pa: 'Punjabi', pl: 'Polish', ro: 'Romanian', ar: 'Arabic', hi: 'Hindi' }
+
+export default function GarageOwnerPanel() {
+  const [garages, setGarages] = useState<any[]>([])
+  const [selectedGarageId, setSelectedGarageId] = useState('')
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState('all')
+
+  useEffect(()=>{ fetchGarages() }, [])
+  useEffect(()=>{ if(selectedGarageId) fetchBookings() }, [selectedGarageId])
+
+  const fetchGarages = async () => {
+    const { data } = await supabase.from('garages').select('*').order('name')
+    if(data) {
+      setGarages(data)
+      if(data.length>0) setSelectedGarageId(data[0].id)
+    }
+  }
+
+  const fetchBookings = async () => {
+    setLoading(true)
+    let query = supabase.from('bookings').select('*').eq('garage_id', selectedGarageId).order('booking_date', {ascending:false}).order('created_at', {ascending:false})
+    if(filter !== 'all') query = query.eq('status', filter)
+    const { data } = await query
+    if(data) setBookings(data as any)
+    setLoading(false)
+  }
+
+  useEffect(()=>{ if(selectedGarageId) fetchBookings() }, [filter])
+
+  const updateStatus = async (booking: Booking, newStatus: string) => {
+    const { error } = await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
+    if(error){ alert(error.message); return }
+
+    // Simulate SMS in owner's language + English
+    const messages: any = {
+      in_progress: {
+        en: `AI GARAGE - ${booking.booking_ref}: Work Started on ${booking.car_reg} at ${garages.find(g=>g.id===selectedGarageId)?.name}. We'll notify when ready.`,
+        ur: `AI GARAGE - ${booking.booking_ref}: ${booking.car_reg} پر کام شروع ہو گیا ہے۔ تیار ہونے پر اطلاع دیں گے۔`,
+      },
+      ready: {
+        en: `AI GARAGE - ${booking.booking_ref}: Your car ${booking.car_reg} is READY FOR COLLECTION! 🎉 Please collect from ${garages.find(g=>g.id===selectedGarageId)?.name}. Payment at collection.`,
+        ur: `AI GARAGE - ${booking.booking_ref}: آپ کی گاڑی ${booking.car_reg} تیار ہے! 🎉 براہ کرم ${garages.find(g=>g.id===selectedGarageId)?.name} سے لے جائیں۔`,
+      },
+      completed: {
+        en: `AI GARAGE - ${booking.booking_ref}: Thank you! ${booking.car_reg} completed. Please leave a review! ⭐`,
+        ur: `AI GARAGE - ${booking.booking_ref}: شکریہ! ${booking.car_reg} مکمل۔ ریویو دیں! ⭐`,
+      }
+    }
+
+    const lang = booking.preferred_language || 'en'
+    const msg = messages[newStatus]?.[lang] || messages[newStatus]?.['en'] || `Status updated to ${newStatus}`
     
-    // Get garage profile from garages table
-    const { data: gData } = await supabase.from("garages").select("*").eq("email", session.user.email).single();
-    if (gData) setGarage(gData);
+    console.log(`=== SMS TO CUSTOMER ${booking.customer_phone} ===`)
+    console.log(msg)
+    console.log(`Also English version will be sent`)
+    console.log('=====================================')
+    
+    alert(`✅ Status updated to ${newStatus.toUpperCase()}!\n\nSMS would be sent to ${booking.customer_phone} in ${languageNames[lang]} + English:\n\n${msg}`)
+    
+    fetchBookings()
+  }
 
-    // Fetch ONLY this garage's bookings
-    const { data: bData } = await supabase
-      .from("bookings")
-      .select("*")
-      .or(`garage_email.eq.${session.user.email},garage_name.eq.${gData?.name || "none"}`)
-      .order("created_at", { ascending: false });
-
-    if (bData) setBookings(bData);
-    setLoading(false);
-  };
-
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("bookings").update({ status }).eq("id", id);
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
-  };
-
-  const filtered = bookings.filter(b => filter === "all" ? true : b.status === filter);
-
-  if (loading) return <div style={{ background: "#080808", minHeight: "100vh", display: "grid", placeItems: "center", color: "#fff" }}>Loading your garage...</div>;
+  const selectedGarage = garages.find(g=>g.id===selectedGarageId)
 
   return (
-    <div className="dash">
-      <aside className="side">
-        <div className="brand"><div className="dot" />AI GARAGE</div>
-        <div className="gInfo">
-          <b>{garage?.name || "Garage"}</b>
-          <span>{garage?.email}</span>
-          <span style={{ color: "#facc15" }}>{garage?.address}</span>
-        </div>
-        <div className="stats-mini">
-          <div><b>{bookings.length}</b><span>Total Bookings</span></div>
-          <div><b>{bookings.filter(b=>b.status==="pending").length}</b><span>Pending</span></div>
-        </div>
-        <button className="logout" onClick={async()=>{await supabase.auth.signOut(); window.location.href="/garage/login";}}>Logout</button>
-      </aside>
+    <div className="min-h-screen bg-[#08080a] text-white">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap'); *{font-family:Geist,sans-serif}`}</style>
+      <div className="bg-[#facc15] text-black text-center py-2 px-4 text-xs font-bold">🔧 GARAGE OWNER PANEL - Manage Bookings - Auto SMS in Customer Language + English</div>
+      <header className="border-b border-zinc-800 p-4"><div className="max-w-6xl mx-auto flex justify-between items-center"><a href="/" className="flex items-center gap-2"><div className="h-8 w-8 bg-[#facc15] rounded-lg grid place-items-center text-black font-bold">AI</div><span className="font-bold">GARAGE OWNER</span></a><select value={selectedGarageId} onChange={e=>setSelectedGarageId(e.target.value)} className="h-10 px-4 rounded-full bg-zinc-900 border border-zinc-800 text-sm max-w-[200px]">{garages.map(g=><option key={g.id} value={g.id}>{g.name} - {g.postcode}</option>)}</select></div></header>
 
-      <main className="main">
-        <header>
-          <div><h1>Bookings for {garage?.name}</h1><p>Only your garage bookings - private & secure</p></div>
-          <div className="filters">
-            {["all","pending","confirmed","completed"].map(f=>(
-              <button key={f} onClick={()=>setFilter(f)} className={filter===f?"on":""}>{f} ({f==="all"?bookings.length:bookings.filter(b=>b.status===f).length})</button>
-            ))}
-          </div>
-        </header>
+      <main className="max-w-6xl mx-auto p-4 sm:p-6">
+        {selectedGarage && <div className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-4 mb-6 flex justify-between items-center"><div><div className="font-bold">{selectedGarage.name}</div><div className="text-xs text-zinc-500">{selectedGarage.address} • {selectedGarage.phone} • {bookings.length} Bookings</div></div><div className="text-xs bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded-full">Today: {new Date().toLocaleDateString('en-GB')}</div></div>}
 
-        {filtered.length===0 ? (
-          <div className="empty">
-            <h3>No bookings yet for {garage?.name}</h3>
-            <p>When customer selects your garage on main site, it will appear here automatically.</p>
-            <a href="/" target="_blank">View Main Site →</a>
-          </div>
-        ) : (
-          <div className="grid">
-            {filtered.map(b=>(
-              <div key={b.id} className="card">
-                <div className="top"><span className="reg">{b.reg_number}</span><span className={`st ${b.status}`}>{b.status}</span></div>
-                <h3>{b.make || "Vehicle"} • {b.service_type}</h3>
-                <p className="cust">{b.customer_name} • {b.customer_phone}</p>
-                <p className="meta">{new Date(b.created_at).toLocaleString()}</p>
-                <div className="acts">
-                  {b.status==="pending" && <button onClick={()=>updateStatus(b.id,"confirmed")} className="gold">✓ Confirm Booking</button>}
-                  {b.status==="confirmed" && <button onClick={()=>updateStatus(b.id,"completed")} className="white">✓ Mark Completed</button>}
-                  <a href={`tel:${b.customer_phone}`} className="call">📞 Call</a>
+        <div className="flex gap-2 mb-6 overflow-auto">
+          {[
+            {key:'all', label:`All (${bookings.length})`},
+            {key:'confirmed', label:'Confirmed'},
+            {key:'in_progress', label:'In Progress'},
+            {key:'ready', label:'Ready'},
+            {key:'completed', label:'Completed'},
+          ].map(f=><button key={f.key} onClick={()=>setFilter(f.key)} className={`h-9 px-4 rounded-full text-xs font-medium border whitespace-nowrap ${filter===f.key ? 'bg-[#facc15] text-black border-[#facc15] font-bold' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'}`}>{f.label}</button>)}
+        </div>
+
+        {loading ? <div className="text-center py-20 text-zinc-500">Loading bookings...</div> : bookings.length===0 ? <div className="text-center py-20 bg-zinc-900 border border-zinc-800 rounded-[20px]"><div className="text-3xl mb-2">📭</div><div className="font-semibold">No bookings</div><div className="text-xs text-zinc-500 mt-1">Bookings will appear here when customers book via website/app</div></div> : (
+          <div className="grid gap-3">
+            {bookings.map(b=>{
+              const statusInfo = statusOptions.find(s=>s.key===b.status) || statusOptions[0]
+              return (
+                <div key={b.id} className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-4 sm:p-5">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap"><span className="font-bold tracking-wider text-sm">{b.booking_ref}</span><span className={`text-[10px] px-2 py-1 rounded-full font-bold ${statusInfo.color} text-white`}>{b.status.toUpperCase()}</span><span className="text-[10px] bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-full">{languageNames[b.preferred_language] || b.preferred_language}</span></div>
+                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div><div className="text-[10px] text-zinc-500 uppercase">Customer</div><div className="font-medium mt-0.5">{b.customer_name}</div><div className="text-zinc-400">{b.customer_phone}</div></div>
+                        <div><div className="text-[10px] text-zinc-500 uppercase">Car</div><div className="font-medium mt-0.5">{b.car_reg}</div><div className="text-zinc-400">{b.service_type}</div></div>
+                        <div><div className="text-[10px] text-zinc-500 uppercase">Drop Off</div><div className="font-medium mt-0.5">{b.booking_date}</div><div className="text-zinc-400">at {b.booking_time?.slice(0,5)}</div></div>
+                        <div><div className="text-[10px] text-zinc-500 uppercase">Note</div><div className="text-zinc-300 mt-0.5 line-clamp-2">{b.description || 'No note'}</div></div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {statusInfo.next && <button onClick={()=>updateStatus(b, statusInfo.next!)} className="h-10 px-5 rounded-full bg-[#facc15] text-black font-bold text-xs whitespace-nowrap hover:bg-yellow-400">{statusInfo.nextLabel}</button>}
+                      <a href={`/track/${b.booking_ref}`} target="_blank" className="h-9 px-4 rounded-full bg-zinc-800 border border-zinc-700 grid place-items-center text-xs font-medium">View Tracking</a>
+                      <a href={`tel:${b.customer_phone}`} className="h-9 px-4 rounded-full bg-white text-black grid place-items-center text-xs font-bold">📞 Call</a>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
-      </main>
 
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Inter:wght@400;700&display=swap');
-        .dash { min-height: 100vh; background: #080808; display: flex; font-family: Inter, sans-serif; }
-        .side { width: 300px; background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border-right: 1px solid rgba(255,255,255,0.08); padding: 24px; display: flex; flex-direction: column; }
-        .brand { display: flex; align-items: center; gap: 10px; font-family: Syne, sans-serif; font-weight: 800; color: #fff; }
-        .dot { width: 10px; height: 10px; background: #facc15; border-radius: 50%; box-shadow: 0 0 16px #facc15; }
-        .gInfo { margin-top: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; }
-        .gInfo b { color: #fff; display: block; font-size: 14px; } .gInfo span { color: rgba(255,255,255,0.5); font-size: 11px; display: block; margin-top: 2px; }
-        .stats-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
-        .stats-mini div { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 12px; text-align: center; }
-        .stats-mini b { color: #facc15; font-size: 20px; display: block; } .stats-mini span { color: rgba(255,255,255,0.5); font-size: 10px; text-transform: uppercase; }
-        .logout { margin-top: auto; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.12); padding: 12px; border-radius: 12px; cursor: pointer; }
-        .main { flex: 1; padding: 24px 28px; overflow-y: auto; }
-        header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
-        header h1 { color: #fff; font-family: Syne, sans-serif; font-size: 22px; margin: 0; } header p { color: rgba(255,255,255,0.5); font-size: 12px; margin: 4px 0 0; }
-        .filters { display: flex; gap: 6px; flex-wrap: wrap; }
-        .filters button { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); padding: 8px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; }
-        .filters button.on { background: #facc15; color: #000; border-color: #facc15; }
-        .empty { margin-top: 60px; text-align: center; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.12); border-radius: 20px; padding: 40px; }
-        .empty h3 { color: #fff; margin: 0; } .empty p { color: rgba(255,255,255,0.5); font-size: 13px; } .empty a { color: #facc15; font-weight: 800; text-decoration: none; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(300px,1fr)); gap: 12px; margin-top: 20px; }
-        .card { background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 16px; }
-        .top { display: flex; justify-content: space-between; }
-        .reg { background: #facc15; color: #000; padding: 4px 10px; border-radius: 6px; font-weight: 900; font-size: 13px; }
-        .st { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 10px; }
-        .st.pending{ background: rgba(250,204,21,0.2); color: #facc15; } .st.confirmed{ background: rgba(34,197,94,0.2); color: #22c55e; } .st.completed{ background: rgba(255,255,255,0.1); color: #fff; }
-        .card h3 { color: #fff; font-size: 14px; margin: 10px 0 4px; } .cust { color: rgba(255,255,255,0.7); font-size: 13px; margin: 0; font-weight: 700; } .meta { color: rgba(255,255,255,0.4); font-size: 11px; margin: 4px 0 0; }
-        .acts { display: flex; gap: 8px; margin-top: 12px; }
-        .gold { flex: 1; background: #facc15; color: #000; border: none; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; }
-        .white { flex: 1; background: #fff; color: #000; border: none; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; }
-        .call { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.12); padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 12px; text-decoration: none; }
-      `}</style>
+        <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-[20px] p-4">
+          <h4 className="font-bold text-sm">How it works - Owner Flow:</h4>
+          <div className="mt-3 grid sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">1. Customer Books</div><div className="text-zinc-500 mt-1">Via website/app → SMS in their language + English + Tracking link</div></div>
+            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">2. You Click "Start Work"</div><div className="text-zinc-500 mt-1">Customer gets SMS: "Work Started" in his language + English</div></div>
+            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">3. You Click "Mark Ready"</div><div className="text-zinc-500 mt-1">Customer gets SMS: "Car Ready! 🎉" in his language + English</div></div>
+            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="font-bold">4. Complete</div><div className="text-zinc-500 mt-1">Customer gets thank you + review request</div></div>
+          </div>
+        </div>
+      </main>
     </div>
-  );
+  )
 }
