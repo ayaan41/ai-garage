@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-06-20",
@@ -33,9 +34,21 @@ export async function POST(req: NextRequest) {
       metadata: {
         booking_ref: bookingRef,
         garage_id: garageId,
+        garage_name: garageName,
       },
       success_url: baseUrl + "/success?booking_ref=" + bookingRef + "&garage=" + garageId,
       cancel_url: baseUrl + "/book/" + garageId,
+    });
+
+    // Instant save to Supabase
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    await supabase.from("bookings").insert({
+      booking_ref: bookingRef,
+      garage_id: garageId,
+      garage_name: garageName,
+      service: serviceName,
+      amount: 50,
+      status: "pending_payment",
     });
 
     return NextResponse.json({ url: session.url, bookingRef: bookingRef });
