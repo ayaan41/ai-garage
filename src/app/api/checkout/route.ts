@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-06-20",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,30 +15,20 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product_data: {
-              name: garageName + " - " + serviceName,
-              description: "Booking Ref: " + bookingRef,
-            },
-            unit_amount: 5000,
-          },
-          quantity: 1,
+      line_items: [{
+        price_data: {
+          currency: "gbp",
+          product_data: { name: garageName + " - " + serviceName, description: "Booking Ref: " + bookingRef },
+          unit_amount: 5000,
         },
-      ],
+        quantity: 1,
+      }],
       mode: "payment",
-      metadata: {
-        booking_ref: bookingRef,
-        garage_id: garageId,
-        garage_name: garageName,
-      },
+      metadata: { booking_ref: bookingRef, garage_id: garageId, garage_name: garageName },
       success_url: baseUrl + "/success?booking_ref=" + bookingRef + "&garage=" + garageId,
       cancel_url: baseUrl + "/book/" + garageId,
     });
 
-    // Instant save to Supabase
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     await supabase.from("bookings").insert({
       booking_ref: bookingRef,
@@ -51,7 +39,7 @@ export async function POST(req: NextRequest) {
       status: "pending_payment",
     });
 
-    return NextResponse.json({ url: session.url, bookingRef: bookingRef });
+    return NextResponse.json({ url: session.url, bookingRef });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
