@@ -1,38 +1,80 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-export default function TrackPage() {
-  const params = useParams(); const ref = params.ref as string;
-  const [booking, setBooking] = useState<any>(null); const [garage, setGarage] = useState<any>(null);
-  const [loading, setLoading] = useState(true); const [payMethod, setPayMethod] = useState<"cash" | "card">("card");
-  useEffect(() => { const fetchData = async () => { const { data: b } = await supabase.from("bookings").select("*").eq("booking_ref", ref).single(); if (b) { setBooking(b); const { data: g } = await supabase.from("garages").select("*").eq("id", b.garage_id).single(); if (g) setGarage(g); } setLoading(false); }; fetchData(); }, [ref]);
-  const steps = [{ id: "CONFIRMED", label: "Booking Confirmed" }, { id: "IN_PROGRESS", label: "Work In Progress" }, { id: "READY", label: "Ready for Collection" }, { id: "COMPLETED", label: "Completed" }];
-  const currentIndex = steps.findIndex(s => s.id === booking?.status); const isFuture = (idx: number) => idx > currentIndex; const isCurrent = (idx: number) => idx === currentIndex;
-  const handlePay = async () => {
-    if (payMethod === "cash") { alert(`Please pay £${booking?.total_price?.toFixed(2)} in cash at haji auto center.\nRef: ${ref}`); }
-    else { alert(`Redirecting to Stripe for £${booking?.total_price?.toFixed(2)}...`); }
-    await supabase.from("bookings").update({ payment_method: payMethod }).eq("booking_ref", ref);
+
+export default function TrackPage({ params }: { params: { ref: string } }) {
+  const [booking, setBooking] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchBooking = async () => {
+    const { data } = await supabase.from("bookings").select("*").eq("booking_ref", params.ref).single();
+    if (data) setBooking(data);
+    setLoading(false);
   };
-  const downloadInvoice = () => {
-    const win = window.open("", "_blank"); if (!win) return;
-    const servicesHtml = (booking.services || []).map((s:any) => `<tr><td>${s.name}</td><td>£${s.price.toFixed(2)}</td></tr>`).join("");
-    const partsHtml = (booking.parts || []).map((p:any) => `<tr><td>${p.name} x${p.qty}</td><td>£${(p.price * p.qty).toFixed(2)}</td></tr>`).join("");
-    win.document.write(`<html><head><title>Invoice ${ref}</title><style>body{font-family:Arial;padding:40px} table{width:100%;border-collapse:collapse;margin-top:20px} th,td{border:1px solid #ddd;padding:10px} th{background:#000;color:#fff}.total{font-weight:bold;font-size:18px;background:#ffeb3b}</style></head><body><h1>haji auto center</h1><p>G40 1EU • Invoice: ${ref}</p><p>Customer: ${booking.customer_name} | Phone: ${booking.phone} | Car: ${booking.car_reg}</p><h3>Services</h3><table><tr><th>Service</th><th>Price</th></tr>${servicesHtml}</table><h3>Parts</h3><table><tr><th>Part</th><th>Price</th></tr>${partsHtml}</table><table><tr><td>Labour (${booking.labour_hours}h x £${booking.labour_rate})</td><td>£${((booking.labour_hours||0)*(booking.labour_rate||0)).toFixed(2)}</td></tr>${booking.taxi_required?`<tr><td>Taxi</td><td>£${booking.taxi_cost}</td></tr>`:""}<tr><td>Subtotal</td><td>£${booking.subtotal}</td></tr><tr><td>VAT 20%</td><td>£${booking.vat}</td></tr><tr class="total"><td>Total</td><td>£${booking.total_price}</td></tr></table></body></html>`);
-    win.document.close(); win.print();
+  useEffect(() => { fetchBooking(); }, []);
+
+  const handleApproval = async (approved: boolean) => {
+    const newStatus = approved ? "IN_PROGRESS" : "APPROVAL_REJECTED";
+    const approval = approved ? "approved" : "rejected";
+    await supabase.from("bookings").update({ approval_status: approval, status: newStatus, requires_approval: false }).eq("booking_ref", params.ref);
+    await fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: booking.phone, garageName: "haji auto center", booking_ref: params.ref, bookingId: params.ref, newStatus: approved ? `APPROVED - Work Started £${booking.total_price}` : `REJECTED - Customer rejected quote` }) });
+    alert(approved ? "✅ Approved! Work will start now." : "❌ Rejected. Garage will contact you.");
+    fetchBooking();
   };
-  if (loading) return <div className="min-h-screen bg-black text-white grid place-items-center">Loading {ref}...</div>;
-  if (!booking) return <div className="min-h-screen bg-black text-white grid place-items-center">Booking not found: {ref}</div>;
+
+  if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
+  if (!booking) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Booking {params.ref} not found</div>;
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-white"><main className="max-w-xl mx-auto p-4 md:p-6">
-      <div className="bg-black rounded-2xl p-6 border border-zinc-800"><div className="flex justify-between items-start"><div><h1 className="text-xl font-bold">{garage?.name || "haji auto center"}</h1><p className="text-xs text-zinc-500">{garage?.address || "G40 1EU"} • Ref: {booking.booking_ref} • {booking.car_reg}</p></div><span className={`px-3 py-1 rounded-full text-xs font-bold ${booking.status === "READY"? "bg-green-500" : booking.status === "IN_PROGRESS"? "bg-yellow-400 text-black" : "bg-zinc-700"}`}>{booking.status}</span></div>
-      <div className="mt-6 space-y-3">{steps.map((step, idx) => (<div key={step.id} className={`flex gap-3 items-center ${isFuture(idx)? "opacity-30" : ""}`}><div className={`w-8 h-8 rounded-full grid place-items-center text-sm font-bold ${isCurrent(idx)? "bg-yellow-400 text-black" : idx < currentIndex? "bg-green-500" : "bg-zinc-800"}`}>{idx < currentIndex? "✓" : idx+1}</div><div><p className={`font-semibold text-sm ${isCurrent(idx)? "text-[#fac51c]" : ""}`}>{step.label}</p><p className="text-xs text-zinc-500">{idx===0?`Drop-off: ${booking.drop_off_date} at ${booking.drop_off_time}`:idx===1?"Mechanic working":idx===2?"Ready - please collect":"Thank you!"}</p></div></div>))}</div></div>
-      {booking.total_price && booking.total_price > 0? (<div className="bg-white text-black rounded-2xl p-6 mt-6"><div className="flex justify-between items-center"><h2 className="text-lg font-bold">Invoice - {booking.booking_ref}</h2><span className={`px-3 py-1 rounded-full text-xs font-bold ${booking.payment_status === 'paid'? 'bg-green-500 text-white' : 'bg-yellow-400 text-black'}`}>{(booking.payment_status || 'unpaid').toUpperCase()}</span></div>
-      <div className="mt-4 space-y-4 text-sm">{booking.services?.length>0 && <div><p className="font-bold">Services</p>{booking.services.map((s:any,i:number)=><div key={i} className="flex justify-between py-1 border-b"><span>{s.name}</span><span>£{s.price.toFixed(2)}</span></div>)}</div>}{booking.parts?.length>0 && <div><p className="font-bold">Parts</p>{booking.parts.map((p:any,i:number)=><div key={i} className="flex justify-between py-1 border-b"><span>{p.name} x{p.qty}</span><span>£{(p.price*p.qty).toFixed(2)}</span></div>)}</div>}<div className="bg-zinc-50 rounded-xl p-3 space-y-1"><div className="flex justify-between"><span>Labour ({booking.labour_hours}h x £{booking.labour_rate})</span><span>£{((booking.labour_hours||0)*(booking.labour_rate||0)).toFixed(2)}</span></div>{booking.taxi_required && <div className="flex justify-between"><span>Taxi</span><span>£{booking.taxi_cost?.toFixed(2)}</span></div>}<div className="flex justify-between text-zinc-500"><span>Subtotal</span><span>£{booking.subtotal?.toFixed(2)}</span></div><div className="flex justify-between text-zinc-500"><span>VAT 20%</span><span>£{booking.vat?.toFixed(2)}</span></div><div className="flex justify-between font-bold text-base pt-2 border-t"><span>Total</span><span>£{booking.total_price?.toFixed(2)}</span></div></div></div>
-      {booking.payment_status!== 'paid' && (<div className="mt-6"><p className="font-bold text-sm mb-2">Choose Payment:</p><div className="flex gap-2"><button onClick={()=>setPayMethod("cash")} className={`flex-1 py-3 rounded-xl border-2 font-bold ${payMethod==="cash"?"bg-black text-white border-black":"bg-white border-zinc-200"}`}>Cash at Garage</button><button onClick={()=>setPayMethod("card")} className={`flex-1 py-3 rounded-xl border-2 font-bold ${payMethod==="card"?"bg-black text-white border-black":"bg-white border-zinc-200"}`}>Card Online</button></div><button onClick={handlePay} className="w-full mt-3 py-4 bg-yellow-400 rounded-xl font-bold text-lg">Pay £{booking.total_price?.toFixed(2)} - {payMethod === "cash"? "Confirm Cash" : "Pay by Card"}</button></div>)}
-      <button onClick={downloadInvoice} className="w-full mt-3 py-3 bg-black text-white rounded-xl text-sm font-bold">Download Invoice PDF</button></div>) : (<div className="bg-zinc-900 rounded-2xl p-6 mt-6 border border-zinc-800 text-center"><p className="text-2xl">💰</p><p className="text-sm font-bold mt-2">Price will be added after inspection</p><p className="text-xs text-zinc-500 mt-1">You will get SMS when invoice is ready.</p></div>)}
-      <div className="mt-6 grid grid-cols-2 gap-3"><a href={`tel:${garage?.phone || '0990123456'}`} className="h-12 rounded-full bg-white text-black font-bold grid place-items-center text-sm">Call Garage</a><a href={`https://wa.me/${(garage?.phone || '0990123456').replace(/\D/g,'')}?text=Hi, my booking ref is ${booking.booking_ref} for ${booking.car_reg}`} target="_blank" className="h-12 rounded-full bg-green-600 text-white font-bold grid place-items-center text-sm">WhatsApp</a></div>
-    </main></div>
+    <div className="min-h-screen bg-black text-white p-4 flex justify-center">
+      <div className="max-w-md w-full">
+        <h1 className="text-2xl font-bold">Track: {booking.booking_ref}</h1>
+        <p className="text-zinc-400 text-sm">{booking.car_reg} - {booking.service_type}</p>
+        
+        <div className="mt-6 bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+          <div className="flex justify-between mb-2"><span className="text-xs text-zinc-500">Status</span><span className={`text-xs font-bold px-3 py-1 rounded-full ${booking.status === 'CONFIRMED' ? 'bg-yellow-400 text-black' : booking.status === 'IN_PROGRESS' ? 'bg-blue-500' : booking.status === 'READY' ? 'bg-green-500' : 'bg-zinc-700'}`}>{booking.status}</span></div>
+          <div className="flex justify-between mb-2"><span className="text-xs text-zinc-500">Car</span><span className="text-sm font-bold">{booking.car_reg} {booking.car_make}</span></div>
+          <div className="flex justify-between"><span className="text-xs text-zinc-500">Total Price</span><span className="text-lg font-bold text-yellow-400">£{booking.total_price || 0}</span></div>
+          
+          {booking.services && booking.services.length > 0 && (
+            <div className="mt-4 border-t border-zinc-800 pt-4"><p className="text-xs font-bold mb-2">Services:</p>{booking.services.map((s:any,i:number)=><div key={i} className="flex justify-between text-xs"><span>{s.name} x{s.qty}</span><span>£{s.price * s.qty}</span></div>)}</div>
+          )}
+          {booking.parts && booking.parts.length > 0 && (
+            <div className="mt-2"><p className="text-xs font-bold mb-2">Parts:</p>{booking.parts.map((p:any,i:number)=><div key={i} className="flex justify-between text-xs"><span>{p.name} x{p.qty}</span><span>£{p.price * p.qty}</span></div>)}</div>
+          )}
+        </div>
+
+        {booking.requires_approval && booking.approval_status === 'pending' && (
+          <div className="mt-6 bg-yellow-400/10 border-2 border-yellow-400 rounded-2xl p-6">
+            <h2 className="font-bold text-yellow-400">⚠️ Approval Required!</h2>
+            <p className="text-sm mt-2">Garage ne extra kaam ka quote bheja hai: <span className="font-bold">£{booking.total_price}</span></p>
+            <p className="text-xs text-zinc-400 mt-1">{booking.approval_note || "Extra work found, please approve to start work"}</p>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button onClick={()=>handleApproval(true)} className="py-3 bg-green-500 text-black rounded-xl font-bold">✅ Approve & Start Work</button>
+              <button onClick={()=>handleApproval(false)} className="py-3 bg-red-500 text-white rounded-xl font-bold">❌ Reject</button>
+            </div>
+            <p className="text-xs text-zinc-500 mt-2 text-center">Approve karne pe hi gari ka kaam shuru hoga</p>
+          </div>
+        )}
+
+        {booking.approval_status === 'approved' && <div className="mt-4 bg-green-500/20 border border-green-500 rounded-xl p-4 text-sm text-green-400">✅ You approved £{booking.total_price} - Work started!</div>}
+        {booking.approval_status === 'rejected' && <div className="mt-4 bg-red-500/20 border border-red-500 rounded-xl p-4 text-sm text-red-400">❌ You rejected the quote - Garage will call you</div>}
+
+        <div className="mt-6 bg-zinc-900 rounded-xl p-4">
+          <p className="text-xs font-bold mb-2">Invoice Actions:</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={()=>window.print()} className="py-3 bg-zinc-800 rounded-xl text-xs font-bold">📄 Print Invoice</button>
+            <a href={`https://wa.me/${booking.phone}?text=Invoice for ${booking.booking_ref} - £${booking.total_price}`} className="py-3 bg-green-600 rounded-xl text-xs font-bold text-center">WhatsApp Invoice</a>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <button className="py-3 bg-yellow-400 text-black rounded-xl text-xs font-bold">💵 Paid Cash at Shop</button>
+            <button className="py-3 bg-blue-600 rounded-xl text-xs font-bold">💳 Pay by Card (Stripe)</button>
+          </div>
+        </div>
+
+        <p className="text-xs text-zinc-600 text-center mt-6">🔄 Auto updates via SMS • 90% AI Automated • haji auto center</p>
+      </div>
+    </div>
   );
 }
