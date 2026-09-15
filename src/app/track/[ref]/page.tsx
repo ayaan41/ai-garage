@@ -12,7 +12,7 @@ export default function TrackPage() {
   const currentIndex = steps.findIndex(s => s.id === booking?.status); const isFuture = (idx: number) => idx > currentIndex; const isCurrent = (idx: number) => idx === currentIndex;
   const handlePay = async () => {
     if (payMethod === "cash") { alert(`Please pay £${booking?.total_price?.toFixed(2)} in cash at haji auto center.\nRef: ${ref}`); }
-    else { alert(`Redirecting to Stripe for £${booking?.total_price?.toFixed(2)}... (Stripe coming next)`); }
+    else { alert(`Redirecting to Stripe for £${booking?.total_price?.toFixed(2)}...`); }
     await supabase.from("bookings").update({ payment_method: payMethod }).eq("booking_ref", ref);
   };
   const downloadInvoice = () => {
