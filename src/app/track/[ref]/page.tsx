@@ -1,145 +1,38 @@
-"use client"
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-
+"use client";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 export default function TrackPage() {
-  const params = useParams()
-  const ref = params.ref as string
-  
-  const [booking, setBooking] = useState<any>(null)
-  const [garage, setGarage] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if(ref) fetchBooking()
-  }, [ref])
-
-  const fetchBooking = async () => {
-    setLoading(true)
-    try {
-      const bookingRef = ref?.toString().toUpperCase()
-      console.log('Fetching booking:', bookingRef)
-      
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('booking_ref', bookingRef)
-        .single()
-
-      if (bookingError || !bookingData) {
-        console.error('Booking error:', bookingError)
-        setError('Booking not found - Check reference: ' + bookingRef)
-        setLoading(false)
-        return
-      }
-
-      setBooking(bookingData)
-
-      const { data: garageData } = await supabase
-        .from('garages')
-        .select('*')
-        .eq('id', bookingData.garage_id)
-        .single()
-
-      if (garageData) setGarage(garageData)
-    } catch(e:any){
-      setError(e.message)
-    }
-    setLoading(false)
-  }
-
-  const getStatusStep = (status: string) => {
-    const steps = ['confirmed', 'in_progress', 'ready', 'completed']
-    return steps.indexOf(status)
-  }
-
-  const statusConfig: any = {
-    pending: { label: 'Pending', color: 'bg-zinc-600', emoji: '⏳' },
-    confirmed: { label: 'Confirmed', color: 'bg-blue-500', emoji: '✅' },
-    in_progress: { label: 'In Progress - Work Started', color: 'bg-yellow-500', emoji: '🔧' },
-    ready: { label: 'Ready for Collection!', color: 'bg-green-500', emoji: '🎉' },
-    completed: { label: 'Completed', color: 'bg-green-600', emoji: '✅' },
-    cancelled: { label: 'Cancelled', color: 'bg-red-500', emoji: '❌' }
-  }
-
-  const languageNames: any = { en: 'English', ur: 'Urdu', pa: 'Punjabi', pl: 'Polish', ro: 'Romanian', ar: 'Arabic' }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#08080a] text-white grid place-items-center">
-        <div className="text-center">
-          <div className="h-8 w-8 border-2 border-zinc-700 border-t-[#facc15] rounded-full animate-spin mx-auto"></div>
-          <p className="mt-3 text-zinc-500 text-sm">Loading booking {ref}...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#08080a] text-white grid place-items-center p-6">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-[20px] p-8 max-w-md w-full text-center">
-          <div className="text-4xl mb-3">❌</div>
-          <h2 className="font-bold">Booking Not Found</h2>
-          <p className="text-sm text-zinc-500 mt-2">{error}</p>
-          <p className="text-xs text-zinc-600 mt-3">Check Supabase bookings table - booking_ref column</p>
-          <a href="/" className="mt-4 inline-block h-10 px-6 rounded-full bg-[#facc15] text-black font-bold text-sm grid place-items-center">Go Home</a>
-        </div>
-      </div>
-    )
-  }
-
-  const currentStep = getStatusStep(booking.status)
-  const status = statusConfig[booking.status] || statusConfig['confirmed']
-
+  const params = useParams(); const ref = params.ref as string;
+  const [booking, setBooking] = useState<any>(null); const [garage, setGarage] = useState<any>(null);
+  const [loading, setLoading] = useState(true); const [payMethod, setPayMethod] = useState<"cash" | "card">("card");
+  useEffect(() => { const fetchData = async () => { const { data: b } = await supabase.from("bookings").select("*").eq("booking_ref", ref).single(); if (b) { setBooking(b); const { data: g } = await supabase.from("garages").select("*").eq("id", b.garage_id).single(); if (g) setGarage(g); } setLoading(false); }; fetchData(); }, [ref]);
+  const steps = [{ id: "CONFIRMED", label: "Booking Confirmed" }, { id: "IN_PROGRESS", label: "Work In Progress" }, { id: "READY", label: "Ready for Collection" }, { id: "COMPLETED", label: "Completed" }];
+  const currentIndex = steps.findIndex(s => s.id === booking?.status); const isFuture = (idx: number) => idx > currentIndex; const isCurrent = (idx: number) => idx === currentIndex;
+  const handlePay = async () => {
+    if (payMethod === "cash") { alert(`Please pay £${booking?.total_price?.toFixed(2)} in cash at haji auto center.\nRef: ${ref}`); }
+    else { alert(`Redirecting to Stripe for £${booking?.total_price?.toFixed(2)}... (Stripe coming next)`); }
+    await supabase.from("bookings").update({ payment_method: payMethod }).eq("booking_ref", ref);
+  };
+  const downloadInvoice = () => {
+    const win = window.open("", "_blank"); if (!win) return;
+    const servicesHtml = (booking.services || []).map((s:any) => `<tr><td>${s.name}</td><td>£${s.price.toFixed(2)}</td></tr>`).join("");
+    const partsHtml = (booking.parts || []).map((p:any) => `<tr><td>${p.name} x${p.qty}</td><td>£${(p.price * p.qty).toFixed(2)}</td></tr>`).join("");
+    win.document.write(`<html><head><title>Invoice ${ref}</title><style>body{font-family:Arial;padding:40px} table{width:100%;border-collapse:collapse;margin-top:20px} th,td{border:1px solid #ddd;padding:10px} th{background:#000;color:#fff}.total{font-weight:bold;font-size:18px;background:#ffeb3b}</style></head><body><h1>haji auto center</h1><p>G40 1EU • Invoice: ${ref}</p><p>Customer: ${booking.customer_name} | Phone: ${booking.phone} | Car: ${booking.car_reg}</p><h3>Services</h3><table><tr><th>Service</th><th>Price</th></tr>${servicesHtml}</table><h3>Parts</h3><table><tr><th>Part</th><th>Price</th></tr>${partsHtml}</table><table><tr><td>Labour (${booking.labour_hours}h x £${booking.labour_rate})</td><td>£${((booking.labour_hours||0)*(booking.labour_rate||0)).toFixed(2)}</td></tr>${booking.taxi_required?`<tr><td>Taxi</td><td>£${booking.taxi_cost}</td></tr>`:""}<tr><td>Subtotal</td><td>£${booking.subtotal}</td></tr><tr><td>VAT 20%</td><td>£${booking.vat}</td></tr><tr class="total"><td>Total</td><td>£${booking.total_price}</td></tr></table></body></html>`);
+    win.document.close(); win.print();
+  };
+  if (loading) return <div className="min-h-screen bg-black text-white grid place-items-center">Loading {ref}...</div>;
+  if (!booking) return <div className="min-h-screen bg-black text-white grid place-items-center">Booking not found: {ref}</div>;
   return (
-    <div className="min-h-screen bg-[#08080a] text-white">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap'); *{font-family:Geist,sans-serif}`}</style>
-      <div className="bg-[#facc15] text-black text-center py-2 px-4 text-xs font-bold">Track Your Booking - No Login Needed</div>
-      <header className="border-b border-zinc-800 p-4">
-        <div className="max-w-3xl mx-auto flex justify-between items-center">
-          <a href="/" className="flex items-center gap-2"><div className="h-8 w-8 bg-[#facc15] rounded-lg grid place-items-center text-black font-bold">AI</div><span className="font-bold">GARAGE</span></a>
-          <span className="text-xs text-zinc-500">Tracking: {booking.booking_ref}</span>
-        </div>
-      </header>
-      <main className="max-w-3xl mx-auto p-4 sm:p-6">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-[24px] p-6">
-          <div className="flex justify-between items-start">
-            <div><div className="text-xs text-zinc-500">Booking Ref</div><div className="font-bold text-xl tracking-wider">{booking.booking_ref}</div><div className="text-xs text-zinc-400 mt-1">{booking.car_reg} • {booking.service_type}</div></div>
-            <div className={`px-3 py-1.5 rounded-full text-xs font-bold text-white ${status.color} flex items-center gap-1.5`}><span>{status.emoji}</span> {status.label}</div>
-          </div>
-          <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="text-[10px] text-zinc-500 uppercase">Garage</div><div className="font-semibold mt-1">{garage?.name}</div><div className="text-xs text-zinc-400 mt-1">{garage?.address}</div><div className="text-xs text-zinc-500 mt-1">{garage?.phone}</div></div>
-            <div className="bg-black border border-zinc-800 rounded-xl p-3"><div className="text-[10px] text-zinc-500 uppercase">Drop Off</div><div className="font-semibold mt-1">{booking.booking_date}</div><div className="text-xs text-zinc-400 mt-1">at {booking.booking_time?.slice(0,5)}</div><div className="text-[10px] text-zinc-500 mt-2">Language: {languageNames[booking.preferred_language] || booking.preferred_language}</div></div>
-          </div>
-          {booking.description && (<div className="mt-4 bg-black border border-zinc-800 rounded-xl p-3"><div className="text-[10px] text-zinc-500 uppercase">Customer Note</div><div className="text-sm mt-1 text-zinc-300">{booking.description}</div></div>)}
-        </div>
-        <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-[24px] p-6">
-          <h3 className="font-bold mb-4">Booking Progress</h3>
-          <div className="space-y-0">
-            {[
-              { key: 'confirmed', title: 'Booking Confirmed', desc: `Your booking for ${booking.booking_date} at ${booking.booking_time?.slice(0,5)} is confirmed. Drop your car at ${garage?.name}.`, time: booking.created_at },
-              { key: 'in_progress', title: 'Work Started - Car in Garage', desc: 'Mechanic has started work.', time: '' },
-              { key: 'ready', title: 'Ready for Collection! 🎉', desc: 'Your car is ready! Please collect.', time: '' },
-              { key: 'completed', title: 'Completed - Thank You!', desc: 'Job completed.', time: '' }
-            ].map((step, idx) => {
-              const isCompleted = currentStep >= idx; const isCurrent = currentStep === idx; const isFuture = currentStep < idx;
-              return (
-                <div key={step.key} className="flex gap-4">
-                  <div className="flex flex-col items-center"><div className={`h-8 w-8 rounded-full grid place-items-center text-sm border-2 ${isCompleted ? 'bg-[#facc15] border-[#facc15] text-black' : isCurrent ? 'bg-zinc-800 border-[#facc15] text-[#facc15]' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>{isCompleted ? '✓' : idx + 1}</div>{idx < 3 && <div className={`w-0.5 h-12 ${isCompleted ? 'bg-[#facc15]' : 'bg-zinc-800'}`}></div>}</div>
-                  <div className={`pb-8 ${isFuture ? 'opacity-50' : ''}`}><div className={`font-semibold text-sm ${isCurrent ? 'text-[#facc15]' : isCompleted ? 'text-white' : 'text-zinc-500'}`}>{step.title} {isCurrent && <span className="text-[10px] bg-[#facc15] text-black px-2 py-0.5 rounded-full ml-2">CURRENT</span>}</div><div className="text-xs text-zinc-400 mt-1 max-w-md">{step.desc}</div></div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <a href={`tel:${garage?.phone}`} className="h-12 rounded-full bg-white text-black font-bold grid place-items-center text-sm">📞 Call Garage</a>
-          <a href={`https://wa.me/${garage?.phone?.replace(/\D/g,'')}?text=Hi, my booking ref is ${booking.booking_ref} for ${booking.car_reg}`} target="_blank" className="h-12 rounded-full bg-[#25D366] text-white font-bold grid place-items-center text-sm">💬 WhatsApp</a>
-        </div>
-      </main>
-    </div>
-  )
+    <div className="min-h-screen bg-zinc-950 text-white"><main className="max-w-xl mx-auto p-4 md:p-6">
+      <div className="bg-black rounded-2xl p-6 border border-zinc-800"><div className="flex justify-between items-start"><div><h1 className="text-xl font-bold">{garage?.name || "haji auto center"}</h1><p className="text-xs text-zinc-500">{garage?.address || "G40 1EU"} • Ref: {booking.booking_ref} • {booking.car_reg}</p></div><span className={`px-3 py-1 rounded-full text-xs font-bold ${booking.status === "READY"? "bg-green-500" : booking.status === "IN_PROGRESS"? "bg-yellow-400 text-black" : "bg-zinc-700"}`}>{booking.status}</span></div>
+      <div className="mt-6 space-y-3">{steps.map((step, idx) => (<div key={step.id} className={`flex gap-3 items-center ${isFuture(idx)? "opacity-30" : ""}`}><div className={`w-8 h-8 rounded-full grid place-items-center text-sm font-bold ${isCurrent(idx)? "bg-yellow-400 text-black" : idx < currentIndex? "bg-green-500" : "bg-zinc-800"}`}>{idx < currentIndex? "✓" : idx+1}</div><div><p className={`font-semibold text-sm ${isCurrent(idx)? "text-[#fac51c]" : ""}`}>{step.label}</p><p className="text-xs text-zinc-500">{idx===0?`Drop-off: ${booking.drop_off_date} at ${booking.drop_off_time}`:idx===1?"Mechanic working":idx===2?"Ready - please collect":"Thank you!"}</p></div></div>))}</div></div>
+      {booking.total_price && booking.total_price > 0? (<div className="bg-white text-black rounded-2xl p-6 mt-6"><div className="flex justify-between items-center"><h2 className="text-lg font-bold">Invoice - {booking.booking_ref}</h2><span className={`px-3 py-1 rounded-full text-xs font-bold ${booking.payment_status === 'paid'? 'bg-green-500 text-white' : 'bg-yellow-400 text-black'}`}>{(booking.payment_status || 'unpaid').toUpperCase()}</span></div>
+      <div className="mt-4 space-y-4 text-sm">{booking.services?.length>0 && <div><p className="font-bold">Services</p>{booking.services.map((s:any,i:number)=><div key={i} className="flex justify-between py-1 border-b"><span>{s.name}</span><span>£{s.price.toFixed(2)}</span></div>)}</div>}{booking.parts?.length>0 && <div><p className="font-bold">Parts</p>{booking.parts.map((p:any,i:number)=><div key={i} className="flex justify-between py-1 border-b"><span>{p.name} x{p.qty}</span><span>£{(p.price*p.qty).toFixed(2)}</span></div>)}</div>}<div className="bg-zinc-50 rounded-xl p-3 space-y-1"><div className="flex justify-between"><span>Labour ({booking.labour_hours}h x £{booking.labour_rate})</span><span>£{((booking.labour_hours||0)*(booking.labour_rate||0)).toFixed(2)}</span></div>{booking.taxi_required && <div className="flex justify-between"><span>Taxi</span><span>£{booking.taxi_cost?.toFixed(2)}</span></div>}<div className="flex justify-between text-zinc-500"><span>Subtotal</span><span>£{booking.subtotal?.toFixed(2)}</span></div><div className="flex justify-between text-zinc-500"><span>VAT 20%</span><span>£{booking.vat?.toFixed(2)}</span></div><div className="flex justify-between font-bold text-base pt-2 border-t"><span>Total</span><span>£{booking.total_price?.toFixed(2)}</span></div></div></div>
+      {booking.payment_status!== 'paid' && (<div className="mt-6"><p className="font-bold text-sm mb-2">Choose Payment:</p><div className="flex gap-2"><button onClick={()=>setPayMethod("cash")} className={`flex-1 py-3 rounded-xl border-2 font-bold ${payMethod==="cash"?"bg-black text-white border-black":"bg-white border-zinc-200"}`}>Cash at Garage</button><button onClick={()=>setPayMethod("card")} className={`flex-1 py-3 rounded-xl border-2 font-bold ${payMethod==="card"?"bg-black text-white border-black":"bg-white border-zinc-200"}`}>Card Online</button></div><button onClick={handlePay} className="w-full mt-3 py-4 bg-yellow-400 rounded-xl font-bold text-lg">Pay £{booking.total_price?.toFixed(2)} - {payMethod === "cash"? "Confirm Cash" : "Pay by Card"}</button></div>)}
+      <button onClick={downloadInvoice} className="w-full mt-3 py-3 bg-black text-white rounded-xl text-sm font-bold">Download Invoice PDF</button></div>) : (<div className="bg-zinc-900 rounded-2xl p-6 mt-6 border border-zinc-800 text-center"><p className="text-2xl">💰</p><p className="text-sm font-bold mt-2">Price will be added after inspection</p><p className="text-xs text-zinc-500 mt-1">You will get SMS when invoice is ready.</p></div>)}
+      <div className="mt-6 grid grid-cols-2 gap-3"><a href={`tel:${garage?.phone || '0990123456'}`} className="h-12 rounded-full bg-white text-black font-bold grid place-items-center text-sm">Call Garage</a><a href={`https://wa.me/${(garage?.phone || '0990123456').replace(/\D/g,'')}?text=Hi, my booking ref is ${booking.booking_ref} for ${booking.car_reg}`} target="_blank" className="h-12 rounded-full bg-green-600 text-white font-bold grid place-items-center text-sm">WhatsApp</a></div>
+    </main></div>
+  );
 }
