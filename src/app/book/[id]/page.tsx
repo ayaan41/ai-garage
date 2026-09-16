@@ -9,8 +9,8 @@ export default function BookPage() {
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState("10:00");
-  const [carReg, setCarReg] = useState("");
-  const [service, setService] = useState("Full Service");
+  const [carReg, setCarReg] = useState("KM77YHK");
+  const [selectedServices, setSelectedServices] = useState<string[]>(["Oil Change"]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,11 +21,9 @@ export default function BookPage() {
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const days = [];
+    const days: (Date | null)[] = [];
     for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      days.push(new Date(year, month, d));
-    }
+    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
     return days;
   };
 
@@ -40,9 +38,19 @@ export default function BookPage() {
   const isToday = (date: Date) => new Date().toDateString() === date.toDateString();
   const isSelected = (date: Date) => selectedDate?.toDateString() === date.toDateString();
 
+  const toggleService = (s: string) => {
+    setSelectedServices(prev =>
+      prev.includes(s)? prev.filter(x=>x!==s) : [...prev, s]
+    );
+  };
+
   const handleBooking = async () => {
     if (!selectedDate ||!carReg ||!name ||!phone) {
       alert("Please fill all fields + select date");
+      return;
+    }
+    if (selectedServices.length === 0) {
+      alert("Select at least one service");
       return;
     }
     setLoading(true);
@@ -55,14 +63,15 @@ export default function BookPage() {
           booking_date: selectedDate.toISOString().split("T")[0],
           time_slot: selectedTime,
           car_reg: carReg.toUpperCase(),
-          service_type: service,
+          service_type: selectedServices.join(", "),
+          service_types: selectedServices,
           customer_name: name,
           phone: phone,
           status: "pending_quote",
         }),
       });
       const data = await res.json();
-      router.push(`/track/${data.ref || data.id}`);
+      router.push(`/track/${data.ref || data.id || data.booking_id}`);
     } catch (e) {
       alert("Booking failed");
     }
@@ -121,11 +130,17 @@ export default function BookPage() {
             <input value={carReg} onChange={e=>setCarReg(e.target.value)} placeholder="AB12 CDE" className="w-full mt-1.5 bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text- uppercase outline-none focus:border-[#FFC600]" />
           </div>
           <div>
-            <label className="text- text-zinc-400">Service Type</label>
+            <div className="flex justify-between">
+              <label className="text- text-zinc-400">Service Type (Multi Select)</label>
+              <span className="text- text-[#FFC600]">{selectedServices.length} selected</span>
+            </div>
             <div className="grid grid-cols-2 gap-2 mt-1.5">
-              {services.map(s => (
-                <button key={s} onClick={()=>setService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${service===s? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{s}</button>
-              ))}
+              {services.map(s => {
+                const active = selectedServices.includes(s);
+                return (
+                  <button key={s} onClick={()=>toggleService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${active? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{active? "✓ " : ""}{s}</button>
+                );
+              })}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -134,10 +149,10 @@ export default function BookPage() {
           </div>
           <div className="bg-[#FFC600]/10 border border-[#FFC600]/20 rounded-xl p-3.5">
             <p className="text-[#FFC600] text- font-bold">No Upfront Payment</p>
-            <p className="text-zinc-400 text- mt-1">Garage will inspect & quote. You pay after approval.</p>
+            <p className="text-zinc-400 text- mt-1">Garage will inspect & quote. Selected: {selectedServices.join(", ") || "None"}</p>
           </div>
           <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl text-">
-            {loading? "Booking..." : "Confirm Booking - Get Ref (Free)"}
+            {loading? "Booking..." : `Confirm Booking - ${selectedServices.length} Services (Free)`}
           </button>
         </div>
       </div>
