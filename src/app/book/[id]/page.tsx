@@ -1,98 +1,144 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-export default function BookGaragePage() {
-  const { id } = useParams();
+export default function BookPage() {
+  const params = useParams();
   const router = useRouter();
-  const [garage, setGarage] = useState<any>(null);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("10:00");
+  const garageId = params.id as string;
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState("10:00");
   const [carReg, setCarReg] = useState("");
   const [service, setService] = useState("Full Service");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  useEffect(() => {
-    supabase.from("garages").select("*").eq("id", id).single().then(({data})=>setGarage(data));
-  }, [id]);
-
-  const handleBooking = async () => {
-    if (!date ||!carReg ||!name ||!phone) { alert("Date, Car Reg, Name, Phone required"); return; }
-    setLoading(true);
-    const bookingRef = `GLA-${Math.floor(100000 + Math.random()*900000)}-${Math.random().toString(36).substring(2,4).toUpperCase()}`;
-
-    const { data, error } = await supabase.from("bookings").insert({
-      booking_ref: bookingRef,
-      garage_id: id,
-      garage_name: garage?.name,
-      service_type: service,
-      service: service,
-      booking_date: date,
-      booking_time: time,
-      car_reg: carReg,
-      vehicle_reg: carReg,
-      customer_name: name,
-      customer_phone: phone,
-      phone: phone,
-      status: "pending_quote", // NO PAYMENT - garage will quote after inspection
-      source: "website_calendar",
-      total_price: null, // Price nahi - garage quote karega
-    }).select().single();
-
-    setLoading(false);
-    if (error) { alert(error.message); return; }
-    // Track pe bhejo - Domino's style
-    router.push(`/track/${bookingRef}`);
+  const getDaysInMonth = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+    for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
+    return days;
   };
 
+  const timeSlots = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00"];
+  const services = ["MOT","Full Service","Interim Service","Brake Check","Engine Diagnostics","Oil Change"];
+
+  const isPast = (date: Date) => {
+    const today = new Date(); today.setHours(0,0,0,0);
+    return date < today;
+  };
+  const isSunday = (date: Date) => date.getDay() === 0;
+  const isToday = (date: Date) => new Date().toDateString() === date.toDateString();
+  const isSelected = (date: Date) => selectedDate?.toDateString() === date.toDateString();
+
+  const handleBooking = async () => {
+    if (!selectedDate ||!carReg ||!name ||!phone) {
+      alert("Please fill all fields + select date");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          garage_id: garageId,
+          booking_date: selectedDate.toISOString().split("T")[0],
+          time_slot: selectedTime,
+          car_reg: carReg.toUpperCase(),
+          service_type: service,
+          customer_name: name,
+          phone: phone,
+          status: "pending_quote",
+        }),
+      });
+      const data = await res.json();
+      router.push(`/track/${data.ref || data.id}`);
+    } catch (e) {
+      alert("Booking failed");
+    }
+    setLoading(false);
+  };
+
+  const days = getDaysInMonth();
+
   return (
-    <div className="min-h-screen bg-black text-white p-6 max-w-lg mx-auto">
-      <h1 className="text-3xl font-bold">Book {garage?.name}</h1>
-      <p className="text-gray-400 text-sm mt-1">{garage?.address || "Glasgow, UK"} • Verified • MOT & Service</p>
-
-      <div className="mt-6 bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
-        <div>
-          <label className="text-sm text-gray-400">Select Date (Calendar)</label>
-          <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3" min={new Date().toISOString().split('T')[0]} />
+    <div className="min-h-screen bg-black text-white flex justify-center p-4">
+      <div className="w-full max-w-">
+        <div className="mb-6 pt-4">
+          <h1 className="text- font-bold">Book haji auto center</h1>
+          <p className="text-zinc-400 text-">g40 • Verified • MOT & Service</p>
         </div>
-        <div>
-          <label className="text-sm text-gray-400">Time Slot</label>
-          <select value={time} onChange={e=>setTime(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3">
-            <option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-sm text-gray-400">Car Registration</label>
-          <input value={carReg} onChange={e=>setCarReg(e.target.value.toUpperCase())} placeholder="AB12 CDE" className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3" />
-        </div>
-        <div>
-          <label className="text-sm text-gray-400">Service Type</label>
-          <select value={service} onChange={e=>setService(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3">
-            <option>Full Service</option><option>MOT</option><option>Brake Check</option><option>Full Diagnostics</option><option>Oil Change</option>
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your Name" className="bg-black border border-white/10 rounded-lg p-3" />
-          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone" className="bg-black border border-white/10 rounded-lg p-3" />
-        </div>
-
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm">
-          <p className="text-yellow-400 font-semibold">No Upfront Payment</p>
-          <p className="text-gray-400">Garage will inspect & quote. You pay after approval. Price not set - Garage will quote after inspection.</p>
-        </div>
-
-        <button onClick={handleBooking} disabled={loading} className="w-full bg-yellow-400 text-black font-bold py-3 rounded-lg hover:bg-yellow-300 disabled:opacity-50">
-          {loading? "Booking..." : "Confirm Booking - Get Ref (Free)"}
-        </button>
-
-        <div className="text-center">
-          <p className="text-xs text-gray-500">Ya call karo - AI 24/7 book karega</p>
-          <p className="text-sm font-bold text-yellow-400 mt-1">📞 AI Call Booking: {garage?.phone || "Auto"} → Same calendar system</p>
+        <div className="bg-[#121212] border border-zinc-800 rounded-2xl p-5 space-y-5">
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <label className="text- text-zinc-400">Select Date (Calendar)</label>
+              <div className="flex gap-2 items-center">
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">‹</button>
+                <span className="text-sm font-medium">{currentMonth.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">›</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text- text-zinc-500 mb-2 text-center">
+              <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((d, i) => {
+                if (!d) return <div key={i} />;
+                const disabled = isPast(d) || isSunday(d);
+                return (
+                  <button key={i} disabled={disabled} onClick={() => setSelectedDate(d)}
+                    className={`h-10 rounded-xl text- font-medium
+                      ${disabled? "bg-zinc-900 text-zinc-600 line-through" : ""}
+                      ${!disabled && isSelected(d)? "bg-[#FFC600] text-black scale-105" : ""}
+                      ${!disabled &&!isSelected(d) && isToday(d)? "bg-zinc-800 border border-[#FFC600] text-white" : ""}
+                      ${!disabled &&!isSelected(d) &&!isToday(d)? "bg-[#1E1E1E] hover:bg-zinc-700 text-white" : ""}`}>
+                    {d.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="text- text-zinc-400 mb-2 block">Time Slot</label>
+            <div className="grid grid-cols-4 gap-2">
+              {timeSlots.map(t => (
+                <button key={t} onClick={() => setSelectedTime(t)} className={`py-2.5 rounded-xl text-sm font-medium border ${selectedTime===t? "bg-white text-black border-white" : "bg-black border-zinc-700 text-zinc-300"}`}>{t}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text- text-zinc-400">Car Registration</label>
+            <input value={carReg} onChange={e=>setCarReg(e.target.value)} placeholder="AB12 CDE" className="w-full mt-1.5 bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text- uppercase outline-none focus:border-[#FFC600]" />
+          </div>
+          <div>
+            <label className="text- text-zinc-400">Service Type</label>
+            <div className="grid grid-cols-2 gap-2 mt-1.5">
+              {services.map(s => (
+                <button key={s} onClick={()=>setService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${service===s? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{s}</button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your Name" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
+            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
+          </div>
+          <div className="bg-[#FFC600]/10 border border-[#FFC600]/20 rounded-xl p-3.5">
+            <p className="text-[#FFC600] text- font-bold">No Upfront Payment</p>
+            <p className="text-zinc-400 text- mt-1">Garage will inspect & quote. You pay after approval.</p>
+          </div>
+          <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl text-">
+            {loading? "Booking..." : "Confirm Booking - Get Ref (Free)"}
+          </button>
         </div>
       </div>
     </div>
