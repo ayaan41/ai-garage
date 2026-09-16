@@ -1,114 +1,99 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
-export default function BookPage() {
-  const params = useParams();
-  const id = params.id as string;
-  const [loading, setLoading] = useState(false);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+export default function BookGaragePage() {
+  const { id } = useParams();
+  const router = useRouter();
   const [garage, setGarage] = useState<any>(null);
-  const [lastBookingRef, setLastBookingRef] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("10:00");
+  const [carReg, setCarReg] = useState("");
+  const [service, setService] = useState("Full Service");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/garage/${id}`)
-     .then((r) => r.json())
-     .then((data) => setGarage(data))
-     .catch(() => setGarage({ name: "Glasgow Garage", location: "Glasgow, UK" }));
-
-    const savedRef = localStorage.getItem("lastBookingRef");
-    if (savedRef) setLastBookingRef(savedRef);
+    supabase.from("garages").select("*").eq("id", id).single().then(({data})=>setGarage(data));
   }, [id]);
 
-  const handleCheckout = async () => {
+  const handleBooking = async () => {
+    if (!date ||!carReg ||!name ||!phone) { alert("Date, Car Reg, Name, Phone required"); return; }
     setLoading(true);
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          garageId: id,
-          amount: 50,
-          service: "Full Diagnostics - £50",
-          garageName: garage?.name || "Glasgow Garage",
-        }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        localStorage.setItem("lastBookingRef", data.bookingRef);
-        window.location.href = data.url;
-      } else {
-        alert("Checkout error: " + JSON.stringify(data));
-      }
-    } catch (e: any) {
-      alert("Error: " + e.message);
-    }
+    const bookingRef = `GLA-${Math.floor(100000 + Math.random()*900000)}-${Math.random().toString(36).substring(2,4).toUpperCase()}`;
+
+    const { data, error } = await supabase.from("bookings").insert({
+      booking_ref: bookingRef,
+      garage_id: id,
+      garage_name: garage?.name,
+      service_type: service,
+      service: service,
+      booking_date: date,
+      booking_time: time,
+      car_reg: carReg,
+      vehicle_reg: carReg,
+      customer_name: name,
+      customer_phone: phone,
+      phone: phone,
+      status: "pending_quote", // NO PAYMENT - garage will quote after inspection
+      source: "website_calendar",
+      total_price: null, // Price nahi - garage quote karega
+    }).select().single();
+
     setLoading(false);
+    if (error) { alert(error.message); return; }
+    // Track pe bhejo - Domino's style
+    router.push(`/track/${bookingRef}`);
   };
 
   return (
-    <div
-      style={{
-        padding: "40px",
-        maxWidth: "600px",
-        margin: "0 auto",
-        color: "white",
-        background: "#111",
-        minHeight: "100vh",
-      }}
-    >
-      <h1 style={{ fontSize: "28px", marginBottom: "10px", fontWeight: "bold" }}>Book Garage</h1>
+    <div className="min-h-screen bg-black text-white p-6 max-w-lg mx-auto">
+      <h1 className="text-3xl font-bold">Book {garage?.name}</h1>
+      <p className="text-gray-400 text-sm mt-1">{garage?.address || "Glasgow, UK"} • Verified • MOT & Service</p>
 
-      <p style={{ fontSize: "12px", color: "#666", letterSpacing: "1px" }}>
-        GARAGE ID: {id.slice(0, 8).toUpperCase()} • GLASGOW
-      </p>
+      <div className="mt-6 bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+        <div>
+          <label className="text-sm text-gray-400">Select Date (Calendar)</label>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3" min={new Date().toISOString().split('T')[0]} />
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Time Slot</label>
+          <select value={time} onChange={e=>setTime(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3">
+            <option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Car Registration</label>
+          <input value={carReg} onChange={e=>setCarReg(e.target.value.toUpperCase())} placeholder="AB12 CDE" className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3" />
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Service Type</label>
+          <select value={service} onChange={e=>setService(e.target.value)} className="w-full mt-1 bg-black border border-white/10 rounded-lg p-3">
+            <option>Full Service</option><option>MOT</option><option>Brake Check</option><option>Full Diagnostics</option><option>Oil Change</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your Name" className="bg-black border border-white/10 rounded-lg p-3" />
+          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone" className="bg-black border border-white/10 rounded-lg p-3" />
+        </div>
 
-      <p style={{ marginTop: "15px", fontWeight: "bold", color: "#facc15", fontSize: "22px" }}>
-        {garage?.name || "Glasgow Garage"}
-      </p>
-      <p style={{ fontSize: "13px", color: "#999", marginTop: "4px" }}>
-        📍 Glasgow, UK • ⭐ Verified Garage • 🛠️ MOT & Service
-      </p>
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm">
+          <p className="text-yellow-400 font-semibold">No Upfront Payment</p>
+          <p className="text-gray-400">Garage will inspect & quote. You pay after approval. Price not set - Garage will quote after inspection.</p>
+        </div>
 
-      {lastBookingRef && (
-        <p style={{ fontSize: "12px", color: "#888", marginTop: "10px", padding: "8px", background: "#222", borderRadius: "6px" }}>
-          Last Booking: <span style={{ color: "#facc15" }}>{lastBookingRef}</span>
-        </p>
-      )}
-
-      <div
-        style={{
-          marginTop: "30px",
-          padding: "20px",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          background: "#1a1a1a",
-        }}
-      >
-        <h3 style={{ fontSize: "16px" }}>Service: Full Diagnostics - £50</h3>
-        <p style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-          Includes full vehicle health check + report. Unique Booking Ref will be generated on payment.
-        </p>
-        <button
-          onClick={handleCheckout}
-          disabled={loading}
-          style={{
-            marginTop: "20px",
-            width: "100%",
-            padding: "15px",
-            background: "#facc15",
-            color: "black",
-            fontWeight: "bold",
-            borderRadius: "8px",
-            cursor: "pointer",
-            border: "none",
-            fontSize: "15px",
-          }}
-        >
-          {loading? "Generating Booking Ref..." : "Pay £50 with Card (Stripe)"}
+        <button onClick={handleBooking} disabled={loading} className="w-full bg-yellow-400 text-black font-bold py-3 rounded-lg hover:bg-yellow-300 disabled:opacity-50">
+          {loading? "Booking..." : "Confirm Booking - Get Ref (Free)"}
         </button>
-        <p style={{ fontSize: "11px", color: "#555", marginTop: "10px", textAlign: "center" }}>
-          Secure payment powered by Stripe • Unique Ref for you & Admin
-        </p>
+
+        <div className="text-center">
+          <p className="text-xs text-gray-500">Ya call karo - AI 24/7 book karega</p>
+          <p className="text-sm font-bold text-yellow-400 mt-1">📞 AI Call Booking: {garage?.phone || "Auto"} → Same calendar system</p>
+        </div>
       </div>
     </div>
   );
