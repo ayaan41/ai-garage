@@ -4,130 +4,68 @@ import { createClient } from "@supabase/supabase-js";
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url ||!key) throw new Error("Missing Supabase env vars");
+  if (!url ||!key) throw new Error("Missing env");
   return createClient(url, key);
 }
 
 export async function POST(req: NextRequest) {
-  let supabase;
-  try {
-    supabase = getSupabase();
-  } catch (e: any) {
-    return NextResponse.json({ error: "Config error: " + e.message }, { status: 500 });
-  }
-
+  const supabase = getSupabase();
   try {
     const body = await req.json();
-    console.log("========== BOOKING REQUEST ==========", body);
+    console.log("BODY:", body);
 
     const { booking_date, time_slot, car_reg, service_type, customer_name, phone } = body;
 
-    if (!booking_date ||!car_reg ||!time_slot) {
-      return NextResponse.json({ error: "Missing booking_date or car_reg or time_slot" }, { status: 400 });
+    if (!body || Object.keys(body).length === 0) {
+      return NextResponse.json({ error: "Empty body received - frontend not sending data" }, { status: 400 });
     }
 
-    const ref = `AG-${Math.random().toString(36).substring(2, 6).toUpperCase()}${Date.now().toString().slice(-4)}`;
-    const cleanReg = car_reg.toString().toUpperCase().trim();
+    const cleanReg = (car_reg || "").toString().toUpperCase().trim();
+    if (!cleanReg) return NextResponse.json({ error: "car_reg empty" }, { status: 400 });
 
-    console.log("Clean Reg:", cleanReg, "Ref:", ref);
+    const ref = `AG-${Math.random().toString(36).substring(2,6).toUpperCase()}${Date.now().toString().slice(-4)}`;
 
-    // CORE - ONLY columns that exist in your table
-    const corePayload: any = {
+    const payload: any = {
       booking_date: booking_date,
       time_slot: time_slot,
       car_reg: cleanReg,
       service_type: service_type || "Oil Change",
-      customer_name: customer_name || "ahmadd",
-      phone: phone || "09989897677",
+      customer_name: customer_name || "Guest",
+      phone: phone || "0",
       status: "pending_quote",
+      booking_ref: ref,
+      ref: ref,
     };
 
-    // Attempt 1: with ref + booking_ref
-    let payload1: any = {...corePayload, ref: ref, booking_ref: ref };
-    console.log("Attempt 1 keys:", Object.keys(payload1));
+    console.log("INSERTING:", payload);
 
-    let { data, error } = await supabase.from("bookings").insert().select().single();
+    const { data, error } = await supabase.from("bookings").insert([payload]).select().single();
 
     if (error) {
-      console.log("Attempt 1 FAILED:", error.message);
-
-      // If ref columns don't exist, try only core
-      if (error.message.toLowerCase().includes("ref") || error.message.toLowerCase().includes("car_registration") || error.message.toLowerCase().includes("vehicle_reg")) {
-        console.log("Attempt 2: core only without extra cols");
-        const payload2: any = {...corePayload, booking_ref: ref };
-        const r2 = await supabase.from("bookings").insert().select().single();
-        data = r2.data;
-        error = r2.error;
-        console.log("Attempt 2 result:", error? error.message : "SUCCESS");
-
-        if (error) {
-          console.log("Attempt 3: absolute core only");
-          const r3 = await supabase.from("bookings").insert([corePayload]).select().single();
-          data = r3.data;
-          error = r3.error;
-          console.log("Attempt 3 result:", error? error.message : "SUCCESS ID " + data?.id);
+      console.log("Insert error:", error.message);
+      // Fallback - remove ref if column not exists
+      if (error.message.toLowerCase().includes("ref")) {
+        delete payload.ref;
+        const r2 = await supabase.from("bookings").insert([payload]).select().single();
+        if (!r2.error) {
+          return NextResponse.json({ ref: r2.data.booking_ref || r2.data.id, id: r2.data.booking_ref || r2.data.id, booking: r2.data, success: true });
         }
       }
-
-      if (error && error.message.toLowerCase().includes("time_slot")) {
-        console.log("time_slot column missing, trying time");
-        const payloadTime: any = {
-          booking_date: corePayload.booking_date,
-          time: time_slot,
-          car_reg: cleanReg,
-          service_type: corePayload.service_type,
-          customer_name: corePayload.customer_name,
-          phone: corePayload.phone,
-          status: corePayload.status,
-          booking_ref: ref,
-        };
-        const rTime = await supabase.from("bookings").insert([payloadTime]).select().single();
-        data = rTime.data;
-        error = rTime.error;
-      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (error) {
-      console.error("FINAL FAIL:", error);
-      return NextResponse.json({
-        error: error.message,
-        hint: "Go to Supabase SQL Editor and run: ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_ref TEXT; ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ref TEXT; ALTER TABLE bookings ADD COLUMN IF NOT EXISTS time_slot TEXT;",
-        attempted_ref: ref,
-        attempted_car: cleanReg,
-      }, { status: 500 });
-    }
+    const finalRef = data.booking_ref || data.ref || data.id;
+    return NextResponse.json({ ref: finalRef, id: finalRef, booking_ref: finalRef, success: true, booking: data });
 
-    console.log("SAVED:", data);
-    const finalRef = data.ref || data.booking_ref || data.id || ref;
-
-    return NextResponse.json({
-      ref: finalRef,
-      id: finalRef,
-      booking_ref: finalRef,
-      car_reg: data.car_reg,
-      success: true,
-      booking: data,
-    });
-
-  } catch (err: any) {
-    console.error("CRASH:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (e: any) {
+    console.error("CRASH", e);
+    return NextResponse.json({ error: "Empty or invalid json - " + e.message }, { status: 500 });
   }
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const supabase = getSupabase();
-    const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const { data, error } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(limit);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data || []);
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
-}
-
-export async function OPTIONS() {
-  return NextResponse.json({ ok: true });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(50);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
 }
