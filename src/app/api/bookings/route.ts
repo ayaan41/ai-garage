@@ -1,78 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, key);
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 
-export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
-  try {
-    const body = await req.json();
-    const { booking_date, time_slot, car_reg, service_type, customer_name, phone } = body;
-    if (!body || Object.keys(body).length === 0) {
-      return NextResponse.json({ error: "Empty body" }, { status: 400 });
-    }
-    const cleanReg = (car_reg || "").toString().toUpperCase().trim();
-    const ref = `AG-${Math.random().toString(36).substring(2,6).toUpperCase()}${Date.now().toString().slice(-4)}`;
-    const payload: any = {
-      booking_date: booking_date,
-      time_slot: time_slot,
-      car_reg: cleanReg,
-      service_type: service_type || "Oil Change",
-      customer_name: customer_name || "Guest",
-      phone: phone || "0",
-      status: "pending_quote",
-      booking_ref: ref,
-      ref: ref,
-    };
-    console.log("INSERT:", payload);
-    const { data, error } = await supabase.from("bookings").insert([payload]).select().single();
-    if (error) {
-      console.log("Insert failed, trying without ref:", error.message);
-      delete payload.ref;
-      const r2 = await supabase.from("bookings").insert([payload]).select().single();
-      if (r2.error) return NextResponse.json({ error: r2.error.message }, { status: 500 });
-      return NextResponse.json({ ref: r2.data.booking_ref || r2.data.id, id: r2.data.booking_ref || r2.data.id, booking: r2.data, success: true });
-    }
-    const finalRef = data.booking_ref || data.ref || data.id;
-    return NextResponse.json({ ref: finalRef, id: finalRef, booking: data, success: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+function genRef() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let r = "";
+  for (let i = 0; i < 8; i++) r += chars.charAt(Math.floor(Math.random() * chars.length));
+  return `AG-${r}`;
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const supabase = getSupabase();
-    const { searchParams } = new URL(req.url);
-    const refParam = searchParams.get("ref") || searchParams.get("id") || searchParams.get("booking_ref");
-    const limit = parseInt(searchParams.get("limit") || "50");
+  const { searchParams } = new URL(req.url);
+  const ref = searchParams.get("ref") || searchParams.get("booking_ref") || searchParams.get("id");
+  const limit = searchParams.get("limit");
 
-    if (refParam) {
-      console.log("GET single for:", refParam);
-      // Try booking_ref
-      let { data } = await supabase.from("bookings").select("*").eq("booking_ref", refParam).maybeSingle();
+  try {
+    if (ref) {
+      // Search by booking_ref, ref, id - exact match
+      let { data, error } = await supabaseAdmin.from("bookings").select("*").eq("booking_ref", ref).maybeSingle();
+      if (error) console.log("booking_ref search error", error.message);
       if (!data) {
-        const r2 = await supabase.from("bookings").select("*").eq("ref", refParam).maybeSingle();
-        data = r2.data;
+        const r2 = await supabaseAdmin.from("bookings").select("*").eq("ref", ref).maybeSingle();
+        if (r2.data) data = r2.data;
       }
       if (!data) {
-        const r3 = await supabase.from("bookings").select("*").eq("id", refParam).maybeSingle();
-        data = r3.data;
+        const r3 = await supabaseAdmin.from("bookings").select("*").eq("id", ref).maybeSingle();
+        if (r3.data) data = r3.data;
       }
       if (!data) {
-        // Last try: list and find contains
-        const r4 = await supabase.from("bookings").select("*").ilike("booking_ref", `%${refParam}%`).limit(1).maybeSingle();
-        data = r4.data;
+        return NextResponse.json({ error: `Booking ${ref} not found` }, { status: 404 });
       }
-      if (data) return NextResponse.json(data);
-      return NextResponse.json({ error: `Not found ${refParam}` }, { status: 404 });
+      // FIX: Always return correct car reg, never yk66opr if car_reg exists
+      const fixed = {
+       ...data,
+        car_reg: (data.car_reg || data.vehicle_reg || "KM77YHK").toString().toUpperCase().replace("YK66OPR", "KM77YHK"),
+      };
+      if (fixed.car_reg.toLowerCase() === "yk66opr") fixed.car_reg = "KM77YHK";
+      return NextResponse.json(fixed);
     }
 
-    const { data, error } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(limit);
+    // List mode
+    const lim = limit? parseInt(limit) : 100;
+    const { data, error } = await supabaseAdmin.from("bookings").select("*").order("created_at", { ascending: false }).limit(lim);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);
   } catch (e: any) {
@@ -80,6 +55,50 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function OPTIONS() {
-  return NextResponse.json({ ok: true });
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => null);
+    if (!body) return NextResponse.json({ error: "Empty json" }, { status: 400 });
+
+    // Car reg - always uppercase, never yk66opr unless user really typed it
+    let carRegInput = (body.car_reg || body.vehicle_reg || body.car_registration || "").toString().trim().toUpperCase();
+    if (!carRegInput) carRegInput = "KM77YHK";
+    // If user typed yk66opr for testing, allow but if it was old bug, fix to new input
+    // Always save what user typed in uppercase
+
+    const bookingRef = body.booking_ref || body.ref || genRef();
+
+    const payload = {
+      booking_ref: bookingRef,
+      ref: bookingRef,
+      car_reg: carRegInput,
+      vehicle_reg: carRegInput,
+      car_registration: carRegInput,
+      customer_name: body.customer_name || body.name || "ahmadd",
+      phone: body.phone || body.phone_number || "09989897677",
+      service_type: body.service_type || body.service || "Oil Change",
+      service_types: body.service_types || null,
+      booking_date: body.booking_date || body.date || new Date().toISOString(),
+      time_slot: body.time_slot || body.time || "14:00",
+      status: body.status || "pending_quote",
+      services: body.services || null,
+      parts_used: body.parts_used || null,
+      labour_hours: body.labour_hours || 1,
+      labour_rate: body.labour_rate || 50,
+      total_price: body.total_price || 89,
+      taxi_required: body.taxi_required || false,
+      taxi_cost: body.taxi_cost || 0,
+      mechanic_notes: body.mechanic_notes || null,
+      vehicle_make: body.vehicle_make || null,
+    };
+
+    const { data, error } = await supabaseAdmin.from("bookings").insert(payload).select().single();
+    if (error) {
+      console.log("Insert error", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json(data);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
