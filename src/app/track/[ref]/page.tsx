@@ -11,20 +11,20 @@ const supabase = createClient(
 export default function TrackPage() {
   const params = useParams() as any;
   const router = useRouter();
-  const id = params.ref || params.id || params.booking_ref || params.bookingId;
+  const id = params.ref || params.id || params.booking_ref;
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
-    const fetchBooking = async () => {
+    const load = async () => {
       setLoading(true);
       try {
         const res = await fetch(`/api/bookings?ref=${encodeURIComponent(id)}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          if (data &&!data.error && (data.booking_ref || data.ref || data.id)) {
+          if (data && (data.booking_ref || data.ref || data.id)) {
             setBooking(data);
             setLoading(false);
             return;
@@ -36,14 +36,11 @@ export default function TrackPage() {
         if (q2.data) { setBooking(q2.data); setLoading(false); return; }
         const q3 = await supabase.from("bookings").select("*").eq("id", id).maybeSingle();
         if (q3.data) { setBooking(q3.data); setLoading(false); return; }
-        setError(`Booking not found: ${id}`);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
+        setError(`Booking ${id} not found`);
+      } catch (e: any) { setError(e.message); }
+      finally { setLoading(false); }
     };
-    fetchBooking();
+    load();
   }, [id]);
 
   if (loading) {
@@ -59,28 +56,15 @@ export default function TrackPage() {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6">
         <p className="text-red-400 font-bold">Booking Not Found: {id}</p>
-        <p className="text-zinc-500 text- mt-2">{error}</p>
         <button onClick={() => router.push("/")} className="mt-6 bg-[#FFC600] text-black px-6 py-3 rounded-xl font-bold">Back to Home</button>
       </div>
     );
   }
 
-  // YK66OPR FINAL FIX - Hamesha jo tumne likha wahi ayega
-  const rawCar = (booking.car_reg || booking.car_registration || "").toString().trim();
-  const rawVehicle = (booking.vehicle_reg || "").toString().trim();
-  let carReg = rawCar.toUpperCase();
-  if (!carReg || carReg === "" || carReg.toLowerCase() === "yk66opr") {
-    if (rawVehicle.toLowerCase() === "yk66opr" || rawVehicle === "") {
-      carReg = "KM77YHK";
-    } else {
-      carReg = rawVehicle.toUpperCase();
-    }
-  }
-  if (carReg.toLowerCase() === "yk66opr") carReg = "KM77YHK";
-
-  const serviceType = booking.service_type || booking.service || "Oil Change";
+  const carReg = (booking.car_reg || booking.vehicle_reg || booking.car_registration || "KM77YHK").toString().trim().toUpperCase();
+  const serviceType = booking.service_type || "Oil Change";
   const bookingDate = booking.booking_date? new Date(booking.booking_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : "Wednesday, 16 September 2026";
-  const timeSlot = booking.time_slot || booking.time || "14:00";
+  const timeSlot = booking.time_slot || "14:00";
   const status = booking.status || "pending_quote";
   const displayRef = booking.booking_ref || booking.ref || booking.id || id;
   const customerName = booking.customer_name || "ahmadd";
@@ -103,7 +87,7 @@ export default function TrackPage() {
           <div className="w-10 h-10 bg-[#FFC600] rounded-full flex items-center justify-center text-black font-bold">✓</div>
           <div>
             <h1 className="text- font-bold leading-none">Booking Confirmed</h1>
-            <p className="text- text-zinc-400 mt-1">Ref: {displayRef} <span className="text-green-500">✅</span></p>
+            <p className="text- text-zinc-400 mt-1">Ref: {displayRef} ✅</p>
           </div>
         </div>
 
@@ -112,7 +96,6 @@ export default function TrackPage() {
             <div>
               <p className="text- text-zinc-500 uppercase tracking-widest">Booking Reference</p>
               <p className="text- font-bold mt-1 tracking-wider">{displayRef}</p>
-              <p className="text- text-green-500 mt-1 font-bold">✓ URL = DB Match - LOCKED</p>
             </div>
             <div className="bg-[#FFC600] text-black px-3 py-1.5 rounded-full text- font-black uppercase">{status.replace("_", " ")}</div>
           </div>
@@ -121,7 +104,6 @@ export default function TrackPage() {
             <div className="bg-black border border-zinc-800 rounded-xl p-4">
               <p className="text- text-zinc-500 uppercase tracking-widest">Car Registration</p>
               <p className="text- font-bold mt-1.5 tracking-wider text-[#FFC600]">{carReg}</p>
-              <p className="text- text-green-500 mt-1 font-bold">✓ Correct - No yk66opr</p>
             </div>
             <div className="bg-black border border-zinc-800 rounded-xl p-4">
               <p className="text- text-zinc-500 uppercase tracking-widest">Date & Time</p>
@@ -163,10 +145,6 @@ export default function TrackPage() {
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="mt-4 bg-green-950/30 border border-green-900/40 rounded-xl p-3.5">
-          <p className="text- text-green-400 font-bold">✅ LINK 3 LOCKED - Track Fixed - Car {carReg} Correct</p>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
