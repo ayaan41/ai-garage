@@ -6,9 +6,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-06-20",
 });
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
@@ -16,39 +16,35 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { garageId, garageName, service, customerName, customerEmail, customerPhone, carReg, amount } = body;
 
-    // Booking Ref Generate
     const bookingRef = `GLA-${Math.floor(100000 + Math.random() * 900000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`;
 
-    // Get Dynamic Origin - YEH FIX HAI!
-    const origin = req.headers.get("origin") || req.nextUrl.origin;
+    // FIX 1: Production URL hamesha use karo
+    const finalOrigin = process.env.NEXT_PUBLIC_URL || req.headers.get("origin") || req.nextUrl.origin;
     
-    // Clean origin - agar localhost nahi hai toh production use karo
-    const finalOrigin = origin.includes("localhost") 
-      ? origin 
-      : origin;
+    console.log("Origin:", finalOrigin, "Booking:", bookingRef);
 
-    console.log("Origin for redirect:", finalOrigin);
-    console.log("Booking Ref:", bookingRef);
+    // FIX 2: Booking Insert - Error ko hide nahi karenge ab
+    const { error: dbError } = await supabaseAdmin.from("bookings").insert({
+      booking_ref: bookingRef,
+      garage_id: garageId,
+      garage_name: garageName,
+      service: service,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      customer_phone: customerPhone,
+      car_reg: carReg,
+      amount: amount || 50,
+      status: "pending_payment",
+    });
 
-    // Save booking as pending in DB (optional - agar table hai)
-    try {
-      await supabase.from("bookings").insert({
-        booking_ref: bookingRef,
-        garage_id: garageId,
-        garage_name: garageName,
-        service: service,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        customer_phone: customerPhone,
-        car_reg: carReg,
-        amount: amount,
-        status: "pending_payment",
-      });
-    } catch (e) {
-      console.log("Booking insert skipped:", e);
+    if (dbError) {
+      console.error("DB Insert Error:", dbError);
+      // Table ka naam ya column galat hua toh yahan pata chalega
+    } else {
+      console.log("Booking saved to DB:", bookingRef);
     }
 
-    // Create Stripe Session
+    // FIX 3: Success URL ko /track/ pe bhejo jaisa aapki site pe hai
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -57,21 +53,20 @@ export async function POST(req: NextRequest) {
             currency: "gbp",
             product_data: {
               name: `${service} - ${garageName}`,
-              description: `Booking Ref: ${bookingRef} | Car: ${carReg}`,
+              description: `Ref: ${bookingRef} | Car: ${carReg}`,
             },
-            unit_amount: Math.round((amount || 50) * 100), // £50 default
+            unit_amount: Math.round((amount || 50) * 100),
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      // YEH LINE SAB FIX KAREGI - Dynamic Origin!
-      success_url: `${finalOrigin}/success?booking_ref=${bookingRef}&garage=${garageId}`,
+      success_url: `${finalOrigin}/track/${bookingRef}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${finalOrigin}/cancel?booking_ref=${bookingRef}`,
       customer_email: customerEmail,
       metadata: {
         booking_ref: bookingRef,
-        garage_id: garageId,
+        garage_id: garageId || "",
       },
     });
 
