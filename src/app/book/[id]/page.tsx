@@ -104,14 +104,17 @@ export default function BookPage() {
   const services = ["MOT", "Full Service", "Interim Service", "Brake Check", "Engine Diagnostics", "Oil Change"];
 
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center p-4 pb-24">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex justify-center p-4 pb-24">
       <div className="w-full max-w-">
-        <h1 className="text- font-bold mt-4">Book a Service</h1>
+        <div className="flex justify-between items-center mt-6">
+          <h1 className="text- font-black tracking-tighter">Book a Service</h1>
+          <div className="text- bg-white/10 px-3 py-1 rounded-full font-bold tracking-widest">{currentTime.toLocaleTimeString('en-GB')}</div>
+        </div>
 
-        <div className="mt-6">
-          <label className="text- text-zinc-400 font-medium">Select Date *</label>
+        <div className="mt-8">
+          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Select Date *</label>
 
-          {/* QUICK DATE BUTTONS - Jaise pehle the */}
+          {/* QUICK DATE BUTTONS - Tumhara wala same */}
           <div className="grid grid-cols-5 gap-2 mt-3">
             {quickDates.map(qd => {
               const selected = date === qd.iso;
@@ -119,34 +122,33 @@ export default function BookPage() {
                 <button
                   key={qd.iso}
                   onClick={() => setDate(qd.iso)}
-                  className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all active:scale-[0.96] ${selected? "bg-[#FFC600] text-black border-[#FFC600] font-bold shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-600"}`}
+                  className={`p-3 rounded- border flex flex-col items-center gap-1 transition-all active:scale-[0.96] ${selected? "bg-[#FFC600] text-black border-[#FFC600] font-black shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-600"}`}
                 >
-                  <span className="text- font-bold">{qd.label}</span>
-                  <span className="text-">{qd.display}</span>
+                  <span className="text- font-black tracking-widest">{qd.label}</span>
+                  <span className="text- font-medium">{qd.display}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Calendar input bhi rahega */}
           <div className="mt-3 relative">
             <input
               type="date"
               value={date}
               min={minDate}
               onChange={e => setDate(e.target.value)}
-              className="w-full bg-[#121212] border border-zinc-700 rounded-xl p-4 text-white outline-none focus:border-[#FFC600] focus:ring-1 focus:ring-[#FFC600]/30 transition-all"
+              className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 text-white outline-none focus:border-[#FFC600] focus:ring-1 focus:ring-[#FFC600]/30 transition-all text-"
             />
           </div>
 
-          <div className="mt-2 bg-[#121212] border border-zinc-800 rounded-lg p-2.5">
-            <p className="text- text-white font-medium">📅 Selected: {date? new Date(date).toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) : "No date"} {isToday? "(Today)" : "(Future - All times available)"}</p>
+          <div className="mt-3 bg-[#121212] border border-zinc-800 rounded- p-3">
+            <p className="text- text-white font-medium">📅 Selected: {date? new Date(date).toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) : "No date"} <span className="text-[#FFC600]">{isToday? "(Today)" : "(Future - All times available)"}</span></p>
           </div>
         </div>
 
-        <div className="mt-5">
-          <label className="text- text-zinc-400 font-medium">Select Time *</label>
-          <div className="grid grid-cols-3 gap-2.5 mt-2">
+        <div className="mt-6">
+          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Select Time *</label>
+          <div className="grid grid-cols-3 gap-2.5 mt-3">
             {timeSlots.map(slot => {
               const past = isPastTime(slot);
               const selected = timeSlot === slot;
@@ -155,7 +157,7 @@ export default function BookPage() {
                   key={slot}
                   disabled={past}
                   onClick={() =>!past && setTimeSlot(slot)}
-                  className={`p-3.5 rounded-xl border text- font-medium transition-all active:scale-[0.97] ${past? "bg-zinc-900/50 text-zinc-600 border-zinc-800/50 cursor-not-allowed opacity-50" : selected? "bg-[#FFC600] text-black border-[#FFC600] font-bold shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-700"}`}
+                  className={`p-3.5 rounded- border text- font-bold transition-all active:scale-[0.97] ${past? "bg-zinc-900/50 text-zinc-600 border-zinc-800/50 cursor-not-allowed opacity-50" : selected? "bg-[#FFC600] text-black border-[#FFC600] font-black shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-700"}`}
                 >
                   {slot} {past? "✕" : ""}
                 </button>
@@ -164,40 +166,40 @@ export default function BookPage() {
           </div>
 
           {isToday? (
-            <div className="mt-3 bg-[#1a1a00] border border-yellow-900/40 rounded-xl p-3 flex gap-2.5">
-              <span className="text-yellow-500">⚠️</span>
+            <div className="mt-3 bg-[#1a1a00] border border-yellow-900/40 rounded- p-3 flex gap-2.5">
+              <span className="text-yellow-500 text-">⚠</span>
               <div>
-                <p className="text- text-zinc-300 font-medium">Past times disabled for today</p>
+                <p className="text- text-zinc-300 font-bold">Past times disabled for today</p>
                 <p className="text- text-zinc-500">Current: {currentTime.toLocaleTimeString('en-GB')} - Future only</p>
               </div>
             </div>
           ) : (
-            <div className="mt-3 bg-green-950/30 border border-green-900/30 rounded-xl p-3 flex gap-2.5">
+            <div className="mt-3 bg-green-950/30 border border-green-900/30 rounded- p-3 flex gap-2.5">
               <span className="text-green-500">✅</span>
               <div>
-                <p className="text- text-green-300 font-medium">All times available</p>
+                <p className="text- text-green-300 font-bold">All times available</p>
                 <p className="text- text-zinc-500">Future date {date? new Date(date).toLocaleDateString('en-GB') : ""} - All 09:00-17:00 open</p>
               </div>
             </div>
           )}
         </div>
 
-        <div className="mt-5">
-          <label className="text- text-zinc-400 font-medium">Car Registration *</label>
-          <input value={carReg} onChange={e => setCarReg(e.target.value.toUpperCase())} className="w-full bg-[#121212] border border-zinc-700 rounded-xl p-4 mt-2 text-white uppercase font-bold tracking-wider outline-none focus:border-[#FFC600]" />
-          <p className="text- text-zinc-500 mt-1.5">Current: <span className="text-white font-bold">{carReg}</span> - Saved as uppercase</p>
+        <div className="mt-6">
+          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Car Registration *</label>
+          <input value={carReg} onChange={e => setCarReg(e.target.value.toUpperCase())} className="w-full bg-[#121212] border-2 border-zinc-700 rounded- p-4 mt-2 text-white uppercase font-black tracking-wider text- outline-none focus:border-[#FFC600] h-" />
+          <p className="text- text-zinc-500 mt-2 font-medium">Current: <span className="text-white font-black">{carReg}</span> - Saved as uppercase</p>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-6">
           <div className="flex justify-between items-center">
-            <label className="text- text-zinc-400 font-medium">Service Type *</label>
-            <span className="bg-[#FFC600] text-black text- px-2.5 py-1 rounded-full font-bold">{selectedServices.length} selected</span>
+            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Service Type *</label>
+            <span className="bg-[#FFC600] text-black text- px-3 py-1 rounded-full font-black tracking-widest">{selectedServices.length} SELECTED</span>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-2">
+          <div className="grid grid-cols-2 gap-2.5 mt-3">
             {services.map(s => {
               const sel = selectedServices.includes(s);
               return (
-                <button key={s} onClick={() => toggleService(s)} className={`p-4 rounded-xl border text-left text- transition-all ${sel? "bg-[#FFC600] text-black border-[#FFC600] font-bold" : "bg-[#121212] text-zinc-400 border-zinc-800"}`}>
+                <button key={s} onClick={() => toggleService(s)} className={`p-4 rounded- border text-left text- font-bold transition-all ${sel? "bg-[#FFC600] text-black border-[#FFC600] font-black" : "bg-[#121212] text-zinc-400 border-zinc-800 hover:border-zinc-700"}`}>
                   {sel? "✓ " : ""}{s}
                 </button>
               );
@@ -205,26 +207,26 @@ export default function BookPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3">
           <div>
-            <label className="text- text-zinc-400 font-medium">Your Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded-xl p-4 mt-2 text-white outline-none focus:border-[#FFC600]" />
+            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Your Name *</label>
+            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 mt-2 text-white outline-none focus:border-[#FFC600] h- text-" />
           </div>
           <div>
-            <label className="text- text-zinc-400 font-medium">Phone *</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded-xl p-4 mt-2 text-white outline-none focus:border-[#FFC600]" />
+            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Phone *</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 mt-2 text-white outline-none focus:border-[#FFC600] h- text-" />
           </div>
         </div>
 
-        <div className="mt-5 bg-[#1a1a00] border border-yellow-900/30 rounded-xl p-4">
-          <p className="text-[#FFC600] text- font-bold">💛 No Upfront Payment</p>
-          <p className="text-zinc-400 text- mt-1.5">
+        <div className="mt-6 bg-[#1a1a00] border border-yellow-900/30 rounded- p-4">
+          <p className="text-[#FFC600] text- font-black tracking-widest">💛 NO UPFRONT PAYMENT</p>
+          <p className="text-zinc-400 text- mt-2 leading-relaxed">
             Selected: <span className="text-white font-bold">{selectedServices.join(", ") || "None"}</span> at <span className="text-white font-bold">{timeSlot || "--:--"}</span> on <span className="text-white font-bold">{date? new Date(date).toLocaleDateString("en-GB") : "--"}</span><br/>
-            Car: <span className="text-[#FFC600] font-bold">{carReg}</span>
+            Car: <span className="text-[#FFC600] font-black tracking-wider">{carReg}</span>
           </p>
         </div>
 
-        <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] hover:bg-[#FFD500] text-black py-4 rounded-xl font-bold mt-6 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg">
+        <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] hover:bg-[#FFD500] text-black h- rounded- font-black text- mt-6 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg tracking-wide">
           {loading? "Booking in progress... ⏳" : `Confirm Booking - ${carReg} at ${timeSlot || "--:--"}`}
         </button>
       </div>

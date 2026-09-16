@@ -45,18 +45,18 @@ export default function TrackPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-zinc-800 border-t-[#FFC600] rounded-full animate-spin"></div>
-        <p className="mt-4 text- font-bold">Loading {id}...</p>
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-white/10 border-t-[#FFC600] rounded-full animate-spin"></div>
+        <p className="mt-4 text- font-black tracking-widest uppercase text-white/40">Loading {id}...</p>
       </div>
     );
   }
 
   if (error ||!booking) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6">
-        <p className="text-red-400 font-bold">Booking Not Found: {id}</p>
-        <button onClick={() => router.push("/")} className="mt-6 bg-[#FFC600] text-black px-6 py-3 rounded-xl font-bold">Back to Home</button>
+      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
+        <p className="text-red-400 font-black text-">Booking Not Found: {id}</p>
+        <button onClick={() => router.push("/")} className="mt-6 bg-[#FFC600] text-black px-6 h- rounded- font-black text-">Back to Home</button>
       </div>
     );
   }
@@ -81,51 +81,59 @@ export default function TrackPage() {
   const step = getStep();
 
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center p-4 pb-24">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex justify-center p-4 pb-24">
       <div className="w-full max-w-">
-        <div className="mt-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#FFC600] rounded-full flex items-center justify-center text-black font-bold">✓</div>
+        <div className="mt-8 flex items-center gap-4">
+          <div className="w-12 h-12 bg-[#FFC600] rounded-full flex items-center justify-center text-black font-black text- shadow-[0_8px_20px_rgba(255,204,0,0.4)]">✓</div>
           <div>
-            <h1 className="text- font-bold leading-none">Booking Confirmed</h1>
-            <p className="text- text-zinc-400 mt-1">Ref: {displayRef} ✅</p>
+            <h1 className="text- font-black tracking-tighter leading-none">Booking Confirmed</h1>
+            <p className="text- text-white/50 mt-1.5 font-bold tracking-widest">Ref: {displayRef} ✅ UK Standard</p>
           </div>
         </div>
 
-        <div className="mt-6 bg-[#121212] border border-zinc-800 rounded- p-5">
+        <div className="mt-7 bg-[#151515] border border-white/5 rounded- p-6">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text- text-zinc-500 uppercase tracking-widest">Booking Reference</p>
-              <p className="text- font-bold mt-1 tracking-wider">{displayRef}</p>
+              <p className="text- text-white/30 uppercase tracking-widest font-black">Booking Reference</p>
+              <p className="text- font-black mt-1.5 tracking-wider">{displayRef}</p>
             </div>
-            <div className="bg-[#FFC600] text-black px-3 py-1.5 rounded-full text- font-black uppercase">{status.replace("_", " ")}</div>
+            <div className="bg-[#FFC600] text-black px-3.5 py-1.5 rounded-full text- font-black uppercase tracking-widest">{status.replace("_", " ")}</div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="bg-black border border-zinc-800 rounded-xl p-4">
-              <p className="text- text-zinc-500 uppercase tracking-widest">Car Registration</p>
-              <p className="text- font-bold mt-1.5 tracking-wider text-[#FFC600]">{carReg}</p>
+            <div className="bg-black border border-white/5 rounded- p-4">
+              <p className="text- text-white/30 uppercase tracking-widest font-black">Car Registration</p>
+              <div className="mt-2 w-full h- bg-[#FFC600] border-2 border-black rounded- flex items-center justify-center">
+                <p className="text- font-black tracking-wider text-black">{carReg}</p>
+              </div>
             </div>
-            <div className="bg-black border border-zinc-800 rounded-xl p-4">
-              <p className="text- text-zinc-500 uppercase tracking-widest">Date & Time</p>
-              <p className="text- font-bold mt-1.5 leading-tight">{bookingDate}</p>
-              <p className="text- font-bold text-[#FFC600] mt-1">{timeSlot}</p>
+            <div className="bg-black border border-white/5 rounded- p-4">
+              <p className="text- text-white/30 uppercase tracking-widest font-black">Date & Time</p>
+              <p className="text- font-bold mt-2 leading-tight">{bookingDate}</p>
+              <p className="text- font-black text-[#FFC600] mt-1">{timeSlot}</p>
             </div>
           </div>
 
-          <div className="mt-3 bg-black border border-zinc-800 rounded-xl p-4">
-            <p className="text- text-zinc-500 uppercase tracking-widest">Service</p>
-            <p className="text- font-bold mt-1.5">{serviceType}</p>
+          <div className="mt-3 bg-black border border-white/5 rounded- p-4 flex justify-between items-center">
+            <div>
+              <p className="text- text-white/30 uppercase tracking-widest font-black">Service</p>
+              <p className="text- font-black mt-1">{serviceType}</p>
+            </div>
+            <span className="text-[#FFC600] text-">🔧</span>
           </div>
 
-          <div className="mt-3 bg-black border border-zinc-800 rounded-xl p-4">
-            <p className="text- text-zinc-500 uppercase tracking-widest">Customer</p>
-            <p className="text- font-bold mt-1.5">{customerName} - {phone}</p>
+          <div className="mt-3 bg-black border border-white/5 rounded- p-4 flex justify-between items-center">
+            <div>
+              <p className="text- text-white/30 uppercase tracking-widest font-black">Customer</p>
+              <p className="text- font-bold mt-1">{customerName} - {phone}</p>
+            </div>
+            <span className="text-white/30 text- font-black tracking-widest">VERIFIED</span>
           </div>
         </div>
 
-        <div className="mt-6 bg-[#121212] border border-zinc-800 rounded- p-5">
-          <h3 className="text- font-bold">Track Progress</h3>
-          <div className="mt-6">
+        <div className="mt-6 bg-[#151515] border border-white/5 rounded- p-6">
+          <h3 className="text- font-black tracking-tighter">Track Progress</h3>
+          <div className="mt-6 relative">
             {[
               { label: "Booking Received", desc: `Car ${carReg} - ${serviceType}`, active: step >= 1, current: step === 1 },
               { label: "Quote Sent", desc: "Garage will send price estimate", active: step >= 2, current: step === 2 },
@@ -133,14 +141,14 @@ export default function TrackPage() {
               { label: "In Progress", desc: `Work started on ${carReg}`, active: step >= 4, current: step === 4 },
               { label: "Completed", desc: "Car ready + Invoice ready", active: step >= 5, current: step === 5 },
             ].map((s, i) => (
-              <div key={i} className="flex gap-3">
+              <div key={i} className="flex gap-4">
                 <div className="flex flex-col items-center">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text- font-bold border-2 ${s.active? "bg-[#FFC600] border-[#FFC600] text-black" : "bg-zinc-800 border-zinc-700 text-zinc-500"}`}>{s.active? "✓" : i + 1}</div>
-                  {i < 4 && <div className={`w-0.5 h-10 mt-1 ${s.active && step > i + 1? "bg-[#FFC600]" : s.active? "bg-[#FFC600]/50" : "bg-zinc-800"}`}></div>}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text- font-black border-2 transition-all ${s.active? "bg-[#FFC600] border-[#FFC600] text-black shadow-[0_4px_12px_rgba(255,204,0,0.4)]" : "bg-[#0a0a0a] border-white/10 text-white/20"}`}>{s.active? "✓" : i + 1}</div>
+                  {i < 4 && <div className={`w- h-10 mt-1 rounded-full ${s.active && step > i + 1? "bg-[#FFC600]" : s.active? "bg-[#FFC600]/40" : "bg-white/5"}`}></div>}
                 </div>
                 <div className="pb-8">
-                  <p className={`text- font-bold ${s.current? "text-[#FFC600]" : s.active? "text-white" : "text-zinc-500"}`}>{s.label} {s.current? "- CURRENT" : ""}</p>
-                  <p className="text- text-zinc-500 mt-1">{s.desc}</p>
+                  <p className={`text- font-black ${s.current? "text-[#FFC600]" : s.active? "text-white" : "text-white/30"}`}>{s.label} {s.current? "- CURRENT" : ""}</p>
+                  <p className="text- text-white/40 mt-1 font-medium">{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -148,8 +156,8 @@ export default function TrackPage() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <button onClick={() => router.push(`/invoice/${displayRef}`)} className="bg-white text-black py-4 rounded-xl font-bold text-">🧾 View Invoice</button>
-          <button onClick={() => router.push("/")} className="bg-zinc-800 text-white py-4 rounded-xl font-bold text-">Back to Home</button>
+          <button onClick={() => router.push(`/invoice/${displayRef}`)} className="bg-white text-black h- rounded- font-black text- hover:bg-white/90 transition-all shadow-lg">🧾 View Invoice</button>
+          <button onClick={() => router.push("/")} className="bg-[#151515] border border-white/10 text-white h- rounded- font-black text- hover:bg-white/5 transition-all">Back to Home</button>
         </div>
       </div>
     </div>

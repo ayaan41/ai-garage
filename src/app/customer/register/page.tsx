@@ -12,7 +12,7 @@ export default function CustomerRegister() {
   const handleRegister = async (e: any) => {
     e.preventDefault()
     setLoading(true)
-    
+
     const { data: existing } = await supabase.from("profiles").select("*").eq("email", form.email).single()
     if (existing) {
       alert("Email already registered! Login karo.")
@@ -26,7 +26,7 @@ export default function CustomerRegister() {
       phone: form.phone,
       password: form.password,
       role: "customer",
-      created_at: new Date()
+      created_at: new Date().toISOString()
     }])
 
     if (error) {
@@ -38,31 +38,65 @@ export default function CustomerRegister() {
     localStorage.setItem("customer_email", form.email)
     localStorage.setItem("customer_name", form.name)
     localStorage.setItem("user_role", "customer")
-    
+
     alert("Register ho gaya! My Cars pe ja rahe ho.")
     router.push("/customer")
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-2">Customer Register</h1>
-        <p className="text-gray-500 text-sm mb-6">Apni gadiyon ki history ke liye register karo - Simple!</p>
-        
-        <form onSubmit={handleRegister} className="space-y-4">
-          <input type="text" placeholder="Full Name" required className="w-full p-3 border rounded-lg" onChange={e => setForm({...form, name: e.target.value})} />
-          <input type="email" placeholder="Email" required className="w-full p-3 border rounded-lg" onChange={e => setForm({...form, email: e.target.value})} />
-          <input type="tel" placeholder="Phone" required className="w-full p-3 border rounded-lg" onChange={e => setForm({...form, phone: e.target.value})} />
-          <input type="password" placeholder="Password" required className="w-full p-3 border rounded-lg" onChange={e => setForm({...form, password: e.target.value})} />
-          <button disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700">
-            {loading ? "Register ho raha hai..." : "Register"}
-          </button>
-        </form>
+    <div className="min-h-screen w-full flex bg-[#0a0a0a]">
+      {/* Left - Same Black Branding */}
+      <div className="hidden lg:flex w-[55%] bg-[#111] relative flex-col justify-between p-12">
+        <div>
+          <h1 className="text-white text- font-black tracking-tighter">HAJI AUTO CENTER</h1>
+          <p className="text-white/40 text- tracking-[0.2em] mt-1">UK • 10K STANDARD • GLASGOW</p>
+        </div>
+        <div>
+          <h2 className="text-white text- font-black leading-[0.9] tracking-tighter">
+            Join<br />the<br /><span className="text-[#ffcc00]">family.</span>
+          </h2>
+          <p className="text-white/50 text- mt-6 max-w-">Apni gadiyon ki history ke liye register karo - Simple!</p>
+        </div>
+        <div className="h-1 w-8 bg-[#ffcc00] rounded-full"></div>
+      </div>
 
-        <p className="text-center mt-4 text-sm">
-          Already registered? <Link href="/customer/login" className="text-blue-600 font-bold">Login</Link>
-        </p>
+      {/* Right - Your Same Logic With Premium Card */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-[#f6f6f7]">
+        <div className="w-full max-w-">
+          <div className="lg:hidden mb-8"><h1 className="text-black text- font-black tracking-tighter">HAJI AUTO CENTER</h1></div>
+
+          <div className="bg-white rounded- p-8 shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-black/[0.06]">
+            <h1 className="text- font-black text-black tracking-[-0.02em] leading-none">Customer Register</h1>
+            <p className="text- text-[#6e6e73] mt-3 font-medium">Apni gadiyon ki history ke liye register karo - Simple!</p>
+
+            <form onSubmit={handleRegister} className="mt-8 space-y-4">
+              <div>
+                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Full Name</label>
+                <input type="text" placeholder="Muhammad Mubeen" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Email</label>
+                <input type="email" placeholder="you@email.com" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, email: e.target.value})} />
+              </div>
+              <div>
+                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Phone</label>
+                <input type="tel" placeholder="07XXX XXXXXX" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, phone: e.target.value})} />
+              </div>
+              <div>
+                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Password</label>
+                <input type="password" placeholder="••••••••" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, password: e.target.value})} />
+              </div>
+              <button disabled={loading} className="w-full h- bg-black text-white font-bold rounded- hover:bg-[#222] transition-all text- mt-2">
+                {loading? "Register ho raha hai..." : "Register →"}
+              </button>
+            </form>
+
+            <p className="text-center mt-8 text- text-[#6e6e73]">
+              Already registered? <Link href="/customer/login" className="text-black font-black underline decoration-2 underline-offset-4">Login</Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
