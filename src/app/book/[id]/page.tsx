@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 export default function BookPage() {
@@ -7,7 +7,7 @@ export default function BookPage() {
   const router = useRouter();
   const garageId = params.id as string;
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedTime, setSelectedTime] = useState("10:00");
   const [carReg, setCarReg] = useState("KM77YHK");
   const [selectedServices, setSelectedServices] = useState<string[]>(["Oil Change"]);
@@ -15,6 +15,13 @@ export default function BookPage() {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [now, setNow] = useState(new Date());
+
+  // Live time update every minute
+  useEffect(() => {
+    const iv = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(iv);
+  }, []);
 
   const getDaysInMonth = () => {
     const year = currentMonth.getFullYear();
@@ -32,16 +39,28 @@ export default function BookPage() {
 
   const isPast = (date: Date) => {
     const today = new Date(); today.setHours(0,0,0,0);
-    return date < today;
+    const d = new Date(date); d.setHours(0,0,0,0);
+    return d < today;
   };
   const isSunday = (date: Date) => date.getDay() === 0;
   const isToday = (date: Date) => new Date().toDateString() === date.toDateString();
   const isSelected = (date: Date) => selectedDate?.toDateString() === date.toDateString();
 
+  // NAYA LOGIC: Agar aaj ki date hai to time guzar gaya hai kya?
+  const isTimeSlotPast = (timeStr: string, date: Date | null) => {
+    if (!date) return false;
+    if (!isToday(date)) return false; // future date pe sab allowed
+
+    const [h, m] = timeStr.split(":").map(Number);
+    const slotTime = new Date();
+    slotTime.setHours(h, m, 0, 0);
+
+    // 30 min buffer - agar 2:39 hai to 14:00 bhi block, 15:00 se allow
+    return slotTime.getTime() <= now.getTime();
+  };
+
   const toggleService = (s: string) => {
-    setSelectedServices(prev =>
-      prev.includes(s)? prev.filter(x=>x!==s) : [...prev, s]
-    );
+    setSelectedServices(prev => prev.includes(s)? prev.filter(x=>x!==s) : [...prev, s]);
   };
 
   const handleBooking = async () => {
@@ -51,6 +70,10 @@ export default function BookPage() {
     }
     if (selectedServices.length === 0) {
       alert("Select at least one service");
+      return;
+    }
+    if (isTimeSlotPast(selectedTime, selectedDate)) {
+      alert(`Time ${selectedTime} has already passed. Please select future time. Current time: ${now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`);
       return;
     }
     setLoading(true);
@@ -71,7 +94,12 @@ export default function BookPage() {
         }),
       });
       const data = await res.json();
-      router.push(`/track/${data.ref || data.id || data.booking_id}`);
+      if(!data.ref &&!data.id) {
+        alert("Booking failed - no ref returned");
+        setLoading(false);
+        return;
+      }
+      router.push(`/track/${data.ref || data.id}`);
     } catch (e) {
       alert("Booking failed");
     }
@@ -85,7 +113,7 @@ export default function BookPage() {
       <div className="w-full max-w-">
         <div className="mb-6 pt-4">
           <h1 className="text- font-bold">Book haji auto center</h1>
-          <p className="text-zinc-400 text-">g40 • Verified • MOT & Service</p>
+          <p className="text-zinc-400 text-">g40 • Verified • MOT & Service • {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</p>
         </div>
         <div className="bg-[#121212] border border-zinc-800 rounded-2xl p-5 space-y-5">
           <div>
@@ -106,11 +134,7 @@ export default function BookPage() {
                 const disabled = isPast(d) || isSunday(d);
                 return (
                   <button key={i} disabled={disabled} onClick={() => setSelectedDate(d)}
-                    className={`h-10 rounded-xl text- font-medium
-                      ${disabled? "bg-zinc-900 text-zinc-600 line-through" : ""}
-                      ${!disabled && isSelected(d)? "bg-[#FFC600] text-black scale-105" : ""}
-                      ${!disabled &&!isSelected(d) && isToday(d)? "bg-zinc-800 border border-[#FFC600] text-white" : ""}
-                      ${!disabled &&!isSelected(d) &&!isToday(d)? "bg-[#1E1E1E] hover:bg-zinc-700 text-white" : ""}`}>
+                    className={`h-10 rounded-xl text- font-medium ${disabled? "bg-zinc-900 text-zinc-600 line-through" : ""} ${!disabled && isSelected(d)? "bg-[#FFC600] text-black scale-105" : ""} ${!disabled &&!isSelected(d) && isToday(d)? "bg-zinc-800 border border-[#FFC600] text-white" : ""} ${!disabled &&!isSelected(d) &&!isToday(d)? "bg-[#1E1E1E] hover:bg-zinc-700 text-white" : ""}`}>
                     {d.getDate()}
                   </button>
                 );
@@ -118,12 +142,23 @@ export default function BookPage() {
             </div>
           </div>
           <div>
-            <label className="text- text-zinc-400 mb-2 block">Time Slot</label>
-            <div className="grid grid-cols-4 gap-2">
-              {timeSlots.map(t => (
-                <button key={t} onClick={() => setSelectedTime(t)} className={`py-2.5 rounded-xl text-sm font-medium border ${selectedTime===t? "bg-white text-black border-white" : "bg-black border-zinc-700 text-zinc-300"}`}>{t}</button>
-              ))}
+            <div className="flex justify-between">
+              <label className="text- text-zinc-400">Time Slot</label>
+              {selectedDate && isToday(selectedDate) && <span className="text- text-zinc-500">Now: {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>}
             </div>
+            <div className="grid grid-cols-4 gap-2 mt-2">
+              {timeSlots.map(t => {
+                const past = isTimeSlotPast(t, selectedDate);
+                const active = selectedTime===t;
+                return (
+                  <button key={t} disabled={past} onClick={() => setSelectedTime(t)}
+                    className={`py-2.5 rounded-xl text-sm font-medium border relative ${past? "bg-zinc-900 text-zinc-600 border-zinc-800 line-through cursor-not-allowed" : active? "bg-white text-black border-white" : "bg-black border-zinc-700 text-zinc-300"}`}>
+                    {t} {past && <span className="text- ml-1">✕</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedDate && isToday(selectedDate) && <p className="text- text-zinc-500 mt-2">⚠️ Past times are disabled. Current Glasgow time: {now.toLocaleTimeString('en-GB')}</p>}
           </div>
           <div>
             <label className="text- text-zinc-400">Car Registration</label>
@@ -137,9 +172,7 @@ export default function BookPage() {
             <div className="grid grid-cols-2 gap-2 mt-1.5">
               {services.map(s => {
                 const active = selectedServices.includes(s);
-                return (
-                  <button key={s} onClick={()=>toggleService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${active? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{active? "✓ " : ""}{s}</button>
-                );
+                return <button key={s} onClick={()=>toggleService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${active? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{active? "✓ " : ""}{s}</button>;
               })}
             </div>
           </div>
@@ -149,9 +182,9 @@ export default function BookPage() {
           </div>
           <div className="bg-[#FFC600]/10 border border-[#FFC600]/20 rounded-xl p-3.5">
             <p className="text-[#FFC600] text- font-bold">No Upfront Payment</p>
-            <p className="text-zinc-400 text- mt-1">Garage will inspect & quote. Selected: {selectedServices.join(", ") || "None"}</p>
+            <p className="text-zinc-400 text- mt-1">Selected: {selectedServices.join(", ") || "None"} at {selectedTime} on {selectedDate?.toLocaleDateString('en-GB')}</p>
           </div>
-          <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl text-">
+          <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl text- disabled:opacity-50">
             {loading? "Booking..." : `Confirm Booking - ${selectedServices.length} Services (Free)`}
           </button>
         </div>
