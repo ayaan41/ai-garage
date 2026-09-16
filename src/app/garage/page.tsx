@@ -37,12 +37,45 @@ export default function GarageDashboard() {
   useEffect(() => { load(); }, []);
 
   const updateStatus = async (b: any, next: string) => {
+    let mileageValue = null;
+    if (next === "completed") {
+      const mileageInput = prompt(`🔧 ${b.booking_ref} - COMPLETE ke liye MILEAGE LAZMI!\nMeter se dekho:\n\nExample: 84500`);
+      if (!mileageInput || parseInt(mileageInput) <= 0) {
+        alert("❌ Mileage ke bina complete nahi ho sakta - Ye 100% history ka rule hai!");
+        return;
+      }
+      mileageValue = parseInt(mileageInput);
+      const cleanReg = (b.vehicle_reg || b.car_reg || "").toUpperCase().replace(/\s/g,"");
+      if (cleanReg) {
+        const { data: last } = await supabase.from("car_service_logs").select("mileage").eq("car_reg", cleanReg).order("mileage", { ascending: false }).limit(1).single();
+        if (last && mileageValue < last.mileage) {
+          const ok = confirm(`⚠️ CLOCKING! Last ${last.mileage} tha, ab ${mileageValue} kam - Continue?`);
+          if (!ok) return;
+        }
+        await supabase.from("car_service_logs").insert([{
+          car_reg: cleanReg,
+          mileage: mileageValue,
+          service_type: b.service_type || "Full Service",
+          date: new Date().toISOString().split('T')[0],
+          source: "garage",
+          garage_name: "Haji Auto Center",
+          verified: true,
+          added_by: "garage",
+          notes: `Booking ${b.booking_ref} completed @ ${mileageValue} miles`
+        }]);
+        const { data: carExists } = await supabase.from("cars").select("car_reg").eq("car_reg", cleanReg).single();
+        if (!carExists && b.customer_email) {
+          await supabase.from("cars").insert([{ car_reg: cleanReg, original_owner_email: b.customer_email, is_public: false }]);
+        }
+      }
+    }
     const msg = next === "completed"
-     ? `Thank you! ${b.booking_ref} Completed. Total: £${b.total_price || 0}. - Haji Auto Center`
+     ? `Thank you! ${b.booking_ref} Completed @ ${mileageValue} miles. Total: £${b.total_price || 0}. Verified history updated - Next due ${mileageValue ? mileageValue + 10000 : ''} miles - Haji Auto Center`
       : `Hi ${b.customer_name}, your car ${b.booking_ref} is now ${next.toUpperCase()}. Track: https://ai-garage-mubeena754-2079s-projects.vercel.app/track/${b.booking_ref}`;
-
     await fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: b.phone, message: msg, booking_ref: b.booking_ref }) });
-    await supabase.from("bookings").update({ status: next }).eq("id", b.id);
+    const updateData: any = { status: next };
+    if (mileageValue) { updateData.mileage_completed = mileageValue; updateData.completed_at = new Date().toISOString(); }
+    await supabase.from("bookings").update(updateData).eq("id", b.id);
     load();
   };
 
@@ -52,11 +85,10 @@ export default function GarageDashboard() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="max-w-6xl mx-auto p-4 md:p-8">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight">haji auto center</h1>
-            <p className="text-zinc-500 mt-1">Garage Dashboard • <span className="text-white font-bold">{bookings.length} bookings</span> • <span className="text-green-400">{count('paid')} new paid</span></p>
+            <p className="text-zinc-500 mt-1">Garage Dashboard • <span className="text-white font-bold">{bookings.length} bookings</span> • <span className="text-green-400">{count('paid')} new paid</span> • <span className="text-yellow-400">Mileage ON - UK 10k</span></p>
           </div>
           <div className="flex gap-2">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2">
@@ -69,45 +101,40 @@ export default function GarageDashboard() {
             </div>
           </div>
         </div>
-
-        {/* Filters */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {STATS.map(s => (
-            <button key={s.key} onClick={() => setFilter(s.key)} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${filter===s.key? s.color + ' scale-105' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'}`}>
+            <button key={s.key} onClick={() => setFilter(s.key)} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap ${filter===s.key? s.color + ' scale-105' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}>
               {s.label} ({count(s.key)})
             </button>
           ))}
         </div>
-
         {loading && <div className="text-zinc-500 animate-pulse">Loading jobs...</div>}
-
-        {/* Cards */}
         <div className="grid gap-4">
           {filtered.map(b => (
-            <div key={b.id} className="group bg-[#151515] hover:bg-[#1a1a1a] border border-zinc-800 hover:border-zinc-700 rounded- p-5 transition-all">
+            <div key={b.id} className="bg-[#151515] border border-zinc-800 rounded-xl p-5">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-yellow-400 font-black text-lg tracking-wider">{b.booking_ref}</span>
-                    <span className={`px-3 py-1 rounded-full text- font-black uppercase tracking-wider ${b.status==='paid'?'bg-green-500 text-white animate-pulse': b.status==='confirmed'?'bg-blue-500/20 text-blue-400 border border-blue-500/30': b.status==='in_progress'?'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30': b.status==='ready'?'bg-purple-500/20 text-purple-300 border border-purple-500/30':'bg-zinc-800 text-zinc-400'}`}>{b.status}</span>
+                    <span className="text-yellow-400 font-black text-lg">{b.booking_ref}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${b.status==='paid'?'bg-green-500 text-white animate-pulse': b.status==='confirmed'?'bg-blue-500/20 text-blue-400 border border-blue-500/30': b.status==='in_progress'?'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30': b.status==='ready'?'bg-purple-500/20 text-purple-300 border border-purple-500/30':'bg-zinc-800 text-zinc-400'}`}>{b.status}</span>
                     <span className="text-zinc-600 text-xs">{new Date(b.created_at).toLocaleDateString()}</span>
+                    {b.mileage_completed && <span className="text-green-400 text-xs">@ {b.mileage_completed} miles ✓</span>}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                    <div><span className="text-zinc-600">Name:</span> <span className="text-white font-medium">{b.customer_name || "N/A"}</span></div>
-                    <div><span className="text-zinc-600">Phone:</span> <span className="text-white font-medium">{b.phone || "N/A"}</span></div>
+                    <div><span className="text-zinc-600">Name:</span> <span className="text-white">{b.customer_name || "N/A"}</span></div>
+                    <div><span className="text-zinc-600">Phone:</span> <span className="text-white">{b.phone || "N/A"}</span></div>
                     <div><span className="text-zinc-600">Amount:</span> <span className="text-green-400 font-bold">£{b.amount? (b.amount/100).toFixed(0) : b.total_price || 0}</span></div>
-                    <div><span className="text-zinc-600">Car:</span> <span className="text-white">{b.vehicle_reg || b.car_model || "N/A"}</span></div>
+                    <div><span className="text-zinc-600">Car:</span> <span className="text-white">{b.vehicle_reg || "N/A"}</span></div>
                   </div>
                 </div>
-
                 <div className="flex lg:flex-col gap-2">
                   {NEXT_MAP[b.status?.toLowerCase()] && (
-                    <button onClick={() => updateStatus(b, NEXT_MAP[b.status.toLowerCase()])} className="flex-1 lg:w- py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl font-black text-sm transition-all">
-                      {b.status==='paid'? '✓ ACCEPT' : b.status==='confirmed'? '▶ START' : b.status==='in_progress'? '✓ READY' : '✓ COMPLETE'}
+                    <button onClick={() => updateStatus(b, NEXT_MAP[b.status.toLowerCase()])} className="flex-1 lg:w-32 py-3 bg-yellow-400 text-black rounded-xl font-black text-sm">
+                      {b.status==='paid'? '✓ ACCEPT' : b.status==='confirmed'? '▶ START' : b.status==='in_progress'? '✓ READY' : '✓ COMPLETE + Mileage'}
                     </button>
                   )}
                   <div className="flex gap-2">
-                    <a href={`/garage/job/${b.booking_ref}`} className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold">Job Card</a>
+                    <a href={`/garage/job/${b.booking_ref}`} className="px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-xs font-bold">Job Card</a>
                     <a href={`/track/${b.booking_ref}`} target="_blank" className="px-4 py-2.5 bg-black border border-zinc-700 rounded-xl text-xs">Track</a>
                     <a href={`https://wa.me/${b.phone?.replace(/\D/g,'')}`} target="_blank" className="px-4 py-2.5 bg-[#25D366] text-black rounded-xl text-xs font-bold">WA</a>
                   </div>
@@ -116,12 +143,6 @@ export default function GarageDashboard() {
             </div>
           ))}
         </div>
-
-        {filtered.length===0 &&!loading && (
-          <div className="text-center py-20 bg-zinc-900/50 rounded- border border-dashed border-zinc-800">
-            <p className="text-zinc-500">No {filter} bookings</p>
-          </div>
-        )}
       </div>
     </div>
   );
