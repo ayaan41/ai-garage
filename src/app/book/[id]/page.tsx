@@ -8,74 +8,50 @@ export default function BookPage() {
   const garageId = params.id as string;
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [selectedTime, setSelectedTime] = useState("10:00");
+  const [selectedTime, setSelectedTime] = useState("15:00");
   const [carReg, setCarReg] = useState("KM77YHK");
   const [selectedServices, setSelectedServices] = useState<string[]>(["Oil Change"]);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("ahmadd");
+  const [phone, setPhone] = useState("09989897677");
   const [loading, setLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [now, setNow] = useState(new Date());
 
-  // Live time update every minute
   useEffect(() => {
-    const iv = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(iv);
+    const t = setInterval(() => setNow(new Date()), 1000 * 30);
+    return () => clearInterval(t);
   }, []);
 
-  const getDaysInMonth = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
-    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
-    return days;
+  const getDays = () => {
+    const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+    const arr: (Date | null)[] = [];
+    for (let i = 0; i < first.getDay(); i++) arr.push(null);
+    for (let d = 1; d <= last.getDate(); d++) arr.push(new Date(y, m, d));
+    return arr;
   };
 
   const timeSlots = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00"];
   const services = ["MOT","Full Service","Interim Service","Brake Check","Engine Diagnostics","Oil Change"];
 
-  const isPast = (date: Date) => {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const d = new Date(date); d.setHours(0,0,0,0);
-    return d < today;
-  };
-  const isSunday = (date: Date) => date.getDay() === 0;
-  const isToday = (date: Date) => new Date().toDateString() === date.toDateString();
-  const isSelected = (date: Date) => selectedDate?.toDateString() === date.toDateString();
+  const isPast = (d: Date) => { const a = new Date(); a.setHours(0,0,0,0); const b = new Date(d); b.setHours(0,0,0,0); return b < a; };
+  const isToday = (d: Date) => new Date().toDateString() === d.toDateString();
+  const isSelected = (d: Date) => selectedDate?.toDateString() === d.toDateString();
 
-  // NAYA LOGIC: Agar aaj ki date hai to time guzar gaya hai kya?
-  const isTimeSlotPast = (timeStr: string, date: Date | null) => {
-    if (!date) return false;
-    if (!isToday(date)) return false; // future date pe sab allowed
-
+  const isTimePast = (timeStr: string, date: Date | null) => {
+    if (!date ||!isToday(date)) return false;
     const [h, m] = timeStr.split(":").map(Number);
-    const slotTime = new Date();
-    slotTime.setHours(h, m, 0, 0);
-
-    // 30 min buffer - agar 2:39 hai to 14:00 bhi block, 15:00 se allow
-    return slotTime.getTime() <= now.getTime();
+    const slot = new Date(); slot.setHours(h, m, 0, 0);
+    return slot.getTime() <= now.getTime();
   };
 
-  const toggleService = (s: string) => {
-    setSelectedServices(prev => prev.includes(s)? prev.filter(x=>x!==s) : [...prev, s]);
-  };
+  const toggle = (s: string) => setSelectedServices(p => p.includes(s)? p.filter(x => x!== s) : [...p, s]);
 
   const handleBooking = async () => {
-    if (!selectedDate ||!carReg ||!name ||!phone) {
-      alert("Please fill all fields + select date");
-      return;
-    }
-    if (selectedServices.length === 0) {
-      alert("Select at least one service");
-      return;
-    }
-    if (isTimeSlotPast(selectedTime, selectedDate)) {
-      alert(`Time ${selectedTime} has already passed. Please select future time. Current time: ${now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`);
-      return;
-    }
+    if (!selectedDate ||!carReg ||!name ||!phone) { alert("Fill all fields"); return; }
+    if (selectedServices.length === 0) { alert("Select service"); return; }
+    if (isTimePast(selectedTime, selectedDate)) { alert(`Time ${selectedTime} has passed. Current: ${now.toLocaleTimeString()}`); return; }
+
     setLoading(true);
     try {
       const res = await fetch("/api/bookings", {
@@ -87,106 +63,72 @@ export default function BookPage() {
           time_slot: selectedTime,
           car_reg: carReg.toUpperCase(),
           service_type: selectedServices.join(", "),
-          service_types: selectedServices,
           customer_name: name,
           phone: phone,
-          status: "pending_quote",
         }),
       });
       const data = await res.json();
-      if(!data.ref &&!data.id) {
-        alert("Booking failed - no ref returned");
-        setLoading(false);
-        return;
-      }
+      if (!res.ok) { alert("Error: " + (data.error || "Failed")); setLoading(false); return; }
+      if (!data.ref &&!data.id) { alert("Booking failed - no ref"); setLoading(false); return; }
       router.push(`/track/${data.ref || data.id}`);
-    } catch (e) {
-      alert("Booking failed");
-    }
+    } catch { alert("Network error"); }
     setLoading(false);
   };
 
-  const days = getDaysInMonth();
+  const days = getDays();
 
   return (
     <div className="min-h-screen bg-black text-white flex justify-center p-4">
       <div className="w-full max-w-">
         <div className="mb-6 pt-4">
           <h1 className="text- font-bold">Book haji auto center</h1>
-          <p className="text-zinc-400 text-">g40 • Verified • MOT & Service • {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</p>
+          <p className="text-zinc-400 text-">g40 • Verified • {now.toLocaleTimeString('en-GB')}</p>
         </div>
         <div className="bg-[#121212] border border-zinc-800 rounded-2xl p-5 space-y-5">
           <div>
             <div className="flex justify-between items-center mb-3">
-              <label className="text- text-zinc-400">Select Date (Calendar)</label>
+              <label className="text- text-zinc-400">Select Date</label>
               <div className="flex gap-2 items-center">
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">‹</button>
-                <span className="text-sm font-medium">{currentMonth.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}</span>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">›</button>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">‹</button>
+                <span className="text-sm">{currentMonth.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="w-7 h-7 rounded-full bg-zinc-800">›</button>
               </div>
             </div>
-            <div className="grid grid-cols-7 gap-1 text- text-zinc-500 mb-2 text-center">
-              <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
-            </div>
+            <div className="grid grid-cols-7 gap-1 text- text-zinc-500 mb-2 text-center"><div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div></div>
             <div className="grid grid-cols-7 gap-2">
               {days.map((d, i) => {
                 if (!d) return <div key={i} />;
-                const disabled = isPast(d) || isSunday(d);
-                return (
-                  <button key={i} disabled={disabled} onClick={() => setSelectedDate(d)}
-                    className={`h-10 rounded-xl text- font-medium ${disabled? "bg-zinc-900 text-zinc-600 line-through" : ""} ${!disabled && isSelected(d)? "bg-[#FFC600] text-black scale-105" : ""} ${!disabled &&!isSelected(d) && isToday(d)? "bg-zinc-800 border border-[#FFC600] text-white" : ""} ${!disabled &&!isSelected(d) &&!isToday(d)? "bg-[#1E1E1E] hover:bg-zinc-700 text-white" : ""}`}>
-                    {d.getDate()}
-                  </button>
-                );
+                const disabled = isPast(d) || d.getDay() === 0;
+                return <button key={i} disabled={disabled} onClick={() => setSelectedDate(d)} className={`h-10 rounded-xl text- font-medium ${disabled? "bg-zinc-900 text-zinc-600 line-through" : ""} ${!disabled && isSelected(d)? "bg-[#FFC600] text-black" : ""} ${!disabled &&!isSelected(d) && isToday(d)? "bg-zinc-800 border border-[#FFC600]" : ""} ${!disabled &&!isSelected(d) &&!isToday(d)? "bg-[#1E1E1E]" : ""}`}>{d.getDate()}</button>;
               })}
             </div>
           </div>
+
           <div>
-            <div className="flex justify-between">
-              <label className="text- text-zinc-400">Time Slot</label>
-              {selectedDate && isToday(selectedDate) && <span className="text- text-zinc-500">Now: {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>}
-            </div>
+            <div className="flex justify-between"><label className="text- text-zinc-400">Time Slot</label><span className="text- text-zinc-500">Now: {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>
             <div className="grid grid-cols-4 gap-2 mt-2">
               {timeSlots.map(t => {
-                const past = isTimeSlotPast(t, selectedDate);
-                const active = selectedTime===t;
-                return (
-                  <button key={t} disabled={past} onClick={() => setSelectedTime(t)}
-                    className={`py-2.5 rounded-xl text-sm font-medium border relative ${past? "bg-zinc-900 text-zinc-600 border-zinc-800 line-through cursor-not-allowed" : active? "bg-white text-black border-white" : "bg-black border-zinc-700 text-zinc-300"}`}>
-                    {t} {past && <span className="text- ml-1">✕</span>}
-                  </button>
-                );
+                const past = isTimePast(t, selectedDate);
+                return <button key={t} disabled={past} onClick={() => setSelectedTime(t)} className={`py-2.5 rounded-xl text-sm font-medium border ${past? "bg-zinc-900 text-zinc-600 border-zinc-800 line-through cursor-not-allowed" : selectedTime === t? "bg-white text-black" : "bg-black border-zinc-700"}`}>{t}</button>;
               })}
             </div>
-            {selectedDate && isToday(selectedDate) && <p className="text- text-zinc-500 mt-2">⚠️ Past times are disabled. Current Glasgow time: {now.toLocaleTimeString('en-GB')}</p>}
           </div>
+
+          <input value={carReg} onChange={e => setCarReg(e.target.value)} placeholder="Car Reg" className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3.5 uppercase" />
+
           <div>
-            <label className="text- text-zinc-400">Car Registration</label>
-            <input value={carReg} onChange={e=>setCarReg(e.target.value)} placeholder="AB12 CDE" className="w-full mt-1.5 bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text- uppercase outline-none focus:border-[#FFC600]" />
-          </div>
-          <div>
-            <div className="flex justify-between">
-              <label className="text- text-zinc-400">Service Type (Multi Select)</label>
-              <span className="text- text-[#FFC600]">{selectedServices.length} selected</span>
-            </div>
+            <div className="flex justify-between"><label className="text- text-zinc-400">Service (Multi)</label><span className="text- text-[#FFC600]">{selectedServices.length} selected</span></div>
             <div className="grid grid-cols-2 gap-2 mt-1.5">
-              {services.map(s => {
-                const active = selectedServices.includes(s);
-                return <button key={s} onClick={()=>toggleService(s)} className={`py-3 rounded-xl text- font-medium border text-left px-3 ${active? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800 text-zinc-300"}`}>{active? "✓ " : ""}{s}</button>;
-              })}
+              {services.map(s => <button key={s} onClick={() => toggle(s)} className={`py-3 rounded-xl text- border text-left px-3 ${selectedServices.includes(s)? "bg-[#FFC600] text-black border-[#FFC600]" : "bg-black border-zinc-800"}`}>{selectedServices.includes(s)? "✓ " : ""}{s}</button>)}
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your Name" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
-            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" className="bg-black border border-zinc-800 rounded-xl px-4 py-3.5 text-" />
           </div>
-          <div className="bg-[#FFC600]/10 border border-[#FFC600]/20 rounded-xl p-3.5">
-            <p className="text-[#FFC600] text- font-bold">No Upfront Payment</p>
-            <p className="text-zinc-400 text- mt-1">Selected: {selectedServices.join(", ") || "None"} at {selectedTime} on {selectedDate?.toLocaleDateString('en-GB')}</p>
-          </div>
-          <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl text- disabled:opacity-50">
-            {loading? "Booking..." : `Confirm Booking - ${selectedServices.length} Services (Free)`}
-          </button>
+
+          <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] text-black font-bold py-4 rounded-xl">{loading? "Booking..." : `Confirm ${selectedServices.length} Services`}</button>
         </div>
       </div>
     </div>
