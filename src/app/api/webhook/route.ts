@@ -5,17 +5,30 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-08-27.basil" as any,
-});
-
-// Supabase Admin Client - Service Role se (RLS bypass)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: Request) {
+  
+  // FIX: Sab keys andar check - build time pe crash nahi hoga
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("❌ Supabase keys missing");
+    return new Response("Supabase not configured", { status: 500 });
+  }
+
+  if (!stripeSecretKey) {
+    console.error("❌ STRIPE_SECRET_KEY missing");
+    return new Response("Stripe key not configured", { status: 500 });
+  }
+
+  // Ab andar create karo - build pass hoga
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  const stripe = new Stripe(stripeSecretKey, {
+    apiVersion: "2025-08-27.basil" as any,
+  });
+
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 
@@ -24,7 +37,7 @@ export async function POST(req: Request) {
     return new Response("No signature", { status: 400 });
   }
 
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!webhookSecret) {
     console.error("❌ STRIPE_WEBHOOK_SECRET missing in Vercel");
     return new Response("Webhook secret not configured", { status: 500 });
   }
@@ -36,7 +49,7 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      webhookSecret
     );
   } catch (err: any) {
     console.error(`❌ Webhook signature verification failed: ${err.message}`);
