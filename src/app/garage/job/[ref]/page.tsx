@@ -8,128 +8,143 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export default function JobSheetPage() {
+const allServices = ["MOT","Full Service","Interim Service","Oil Change","Oil Filter","Brake Pads","Brake Discs","Brake Fluid","Brake Caliper","Tyre Change","Puncture Repair","Wheel Balancing","Battery Replacement","Alternator","Starter Motor","Clutch Kit","Timing Belt","Head Gasket","Diagnostics","AC Gas Fill","Exhaust Repair","Suspension","Steering Rack","Coolant Flush"];
+const allPartsList = ["Brake Pads","Brake Discs","Oil Filter","Air Filter","Cabin Filter","Fuel Filter","Spark Plug","Timing Belt","Battery","Clutch Kit","Tyre","Wiper Blades","Headlight Bulb","Brake Fluid","Engine Oil 5W30"];
+
+export default function JobSheet() {
   const { ref } = useParams() as any;
   const router = useRouter();
   const [booking, setBooking] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<any[]>([]);
   const [parts, setParts] = useState<any[]>([]);
-  const [labourHours, setLabourHours] = useState(0);
+  const [labourHours, setLabourHours] = useState(1);
   const [labourRate, setLabourRate] = useState(50);
-  const [taxiRequired, setTaxiRequired] = useState(false);
+  const [taxiReq, setTaxiReq] = useState(false);
   const [taxiCost, setTaxiCost] = useState(0);
   const [notes, setNotes] = useState("");
+  const [sSearch, setSSearch] = useState("");
+  const [pSearch, setPSearch] = useState("");
+  const [showS, setShowS] = useState(false);
+  const [showP, setShowP] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.from("bookings").select("*").eq("booking_ref", ref).single();
-      if (data) {
+    supabase.from("bookings").select("*").eq("booking_ref", ref).single().then(({data}) => {
+      if(data){
         setBooking(data);
         setServices(data.services || []);
         setParts(data.parts_used || []);
         setLabourHours(data.labour_hours || 1);
         setLabourRate(data.labour_rate || 50);
-        setTaxiRequired(data.taxi_required || false);
-        setTaxiCost(data.taxi_cost || 0);
         setNotes(data.mechanic_notes || "");
+        setTaxiReq(data.taxi_required || false);
+        setTaxiCost(data.taxi_cost || 0);
       }
-      setLoading(false);
-    };
-    load();
+    });
   }, [ref]);
 
-  const serviceTotal = services.reduce((s, x) => s + (x.price || 0), 0);
-  const partsTotal = parts.reduce((s, x) => s + (x.price || 0), 0);
+  const sFiltered = allServices.filter(s => s.toLowerCase().includes(sSearch.toLowerCase()));
+  const pFiltered = allPartsList.filter(s => s.toLowerCase().includes(pSearch.toLowerCase()));
+
+  const serviceTotal = services.reduce((a:any,b:any)=>a+(parseFloat(b.price)||0),0);
+  const partsTotal = parts.reduce((a:any,b:any)=>a+(parseFloat(b.price)||0),0);
   const labourTotal = labourHours * labourRate;
-  const grandTotal = serviceTotal + partsTotal + labourTotal + (taxiRequired? taxiCost : 0);
+  const grandTotal = serviceTotal + partsTotal + labourTotal + (taxiReq? taxiCost : 0);
 
-  const saveJobSheet = async (sendToCustomer = true) => {
+  const save = async (sendSms=false) => {
+    setLoading(true);
     const payload = {
-      services,
-      parts_used: parts,
-      labour_hours: labourHours,
-      labour_rate: labourRate,
-      taxi_required: taxiRequired,
-      taxi_cost: taxiCost,
-      total_price: grandTotal,
-      mechanic_notes: notes,
-      status: "ready", // auto move to READY when saved
+      services, parts_used: parts, labour_hours: labourHours, labour_rate: labourRate,
+      total_price: grandTotal, mechanic_notes: notes, taxi_required: taxiReq, taxi_cost: taxiCost,
+      status: sendSms? "ready" : "in_progress"
     };
-
-    await supabase.from("bookings").update(payload).eq("booking_ref", ref);
-
-    if (sendToCustomer) {
-      // AUTOMATION - SMS + WhatsApp
-      const msg = `🔧 Job ${ref} READY! Total: £${grandTotal}. Services: £${serviceTotal}, Parts: £${partsTotal}, Labour: £${labourTotal}${taxiRequired? `, Taxi: £${taxiCost}` : ""}. Invoice: https://ai-garage-mubeena754-2079s-projects.vercel.app/invoice/${ref} - Haji Auto Center`;
-
-      await fetch("/api/send-sms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: booking.phone, message: msg, booking_ref: ref }),
-      });
-      alert(`✅ Saved! SMS + Invoice sent to ${booking.customer_name} - £${grandTotal}`);
-    } else {
-      alert("✅ Job Sheet Saved (Draft)");
+    const { error } = await supabase.from("bookings").update(payload).eq("booking_ref", ref);
+    if(!error && sendSms){
+      await fetch("/api/send-sms", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: booking.phone, booking_ref: ref, message: `Haji Auto: Your job ${ref} is ready! Total £${grandTotal.toFixed(2)}. Invoice: /invoice/${ref}` }) }).catch(()=>{});
     }
+    setLoading(false);
+    if(!error) { alert(sendSms? "Saved & SMS Sent!" : "Draft Saved!"); if(sendSms) router.push("/garage"); }
   };
 
-  if (loading) return <div className="min-h-screen bg-black text-white p-10">Loading {ref}...</div>;
+  if(!booking) return <div className="min-h-screen bg-black text-white p-10">Loading Job {ref}...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
-      <div className="max-w-4xl mx-auto">
-        <button onClick={() => router.back()} className="text-zinc-400 text-sm mb-4">← Back</button>
-        <h1 className="text-3xl font-bold">Job Sheet - {ref}</h1>
-        <p className="text-zinc-400 text-sm">{booking?.customer_name} | {booking?.phone} | {booking?.vehicle_reg || "No Reg"}</p>
+    <div className="min-h-screen bg-black text-white p-4">
+      <button onClick={()=>router.push("/garage")} className="text-zinc-400 text-sm mb-4">← Back</button>
+      <h1 className="text-2xl font-black">Job Sheet - {ref}</h1>
+      <p className="text-zinc-500 text-sm mb-6">{booking.customer_name} | {booking.vehicle_reg || "No Reg"}</p>
 
-        <div className="grid md:grid-cols-2 gap-6 mt-8">
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
-            <div className="flex justify-between mb-4"><h2 className="font-bold">Services</h2><button onClick={() => setServices([...services, { name: "", price: 0 }])} className="text-yellow-400 text-xs">+ Add</button></div>
-            {services.map((s, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <input value={s.name} onChange={e => { const n = [...services]; n[i].name = e.target.value; setServices(n); }} placeholder="Service" className="flex-1 bg-black border border-zinc-700 rounded p-2 text-sm" />
-                <input type="number" value={s.price} onChange={e => { const n = [...services]; n[i].price = parseFloat(e.target.value); setServices(n); }} className="w-20 bg-black border border-zinc-700 rounded p-2 text-sm" />
+      <div className="grid md:grid-cols-2 gap-4 max-w-5xl">
+        {/* Services - Searchable */}
+        <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
+          <p className="font-bold mb-3">Services</p>
+          <div className="relative">
+            <input value={sSearch} onChange={(e)=>{setSSearch(e.target.value); setShowS(true);}} onFocus={()=>setShowS(true)} placeholder="Type e.g. bra..." className="w-full p-3 bg-black border border-zinc-700 rounded-xl text-sm" />
+            {showS && sSearch && (
+              <div className="absolute z-20 w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-xl max-h-48 overflow-y-auto">
+                {sFiltered.map(s => (
+                  <div key={s} onClick={()=>{setServices([...services,{name:s, price:0}]); setSSearch(""); setShowS(false);}} className="p-3 hover:bg-yellow-400 hover:text-black cursor-pointer text-sm">{s}</div>
+                ))}
+                <div onClick={()=>{setServices([...services,{name:sSearch, price:0}]); setSSearch(""); setShowS(false);}} className="p-3 bg-black text-yellow-400 cursor-pointer text-sm">+ Add Custom "{sSearch}"</div>
               </div>
-            ))}
+            )}
           </div>
-
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
-            <div className="flex justify-between mb-4"><h2 className="font-bold">Parts</h2><button onClick={() => setParts([...parts, { name: "", price: 0 }])} className="text-yellow-400 text-xs">+ Add</button></div>
-            {parts.map((p, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <input value={p.name} onChange={e => { const n = [...parts]; n[i].name = e.target.value; setParts(n); }} placeholder="Part" className="flex-1 bg-black border border-zinc-700 rounded p-2 text-sm" />
-                <input type="number" value={p.price} onChange={e => { const n = [...parts]; n[i].price = parseFloat(e.target.value); setParts(n); }} className="w-20 bg-black border border-zinc-700 rounded p-2 text-sm" />
+          <div className="mt-3 space-y-2">
+            {services.map((s:any,i:number)=>(
+              <div key={i} className="flex gap-2 items-center">
+                <span className="flex-1 bg-black p-2 rounded-lg text-sm border border-zinc-800">{s.name}</span>
+                <input type="number" value={s.price} onChange={(e)=>{const c=[...services]; c[i].price=e.target.value; setServices(c);}} placeholder="£" className="w-20 p-2 bg-black border border-zinc-700 rounded-lg text-sm" />
+                <button onClick={()=>setServices(services.filter((_:any,idx:number)=>idx!==i))} className="text-red-400 text-sm">X</button>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-zinc-900 rounded-2xl p-5 mt-6 border border-zinc-800">
-          <h2 className="font-bold mb-4">Pricing + Automation</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div><label className="text-xs text-zinc-500">Labour Hours</label><input type="number" value={labourHours} onChange={e => setLabourHours(parseFloat(e.target.value))} className="w-full mt-1 bg-black border border-zinc-700 rounded p-2" /></div>
-            <div><label className="text-xs text-zinc-500">Rate £/hr</label><input type="number" value={labourRate} onChange={e => setLabourRate(parseFloat(e.target.value))} className="w-full mt-1 bg-black border border-zinc-700 rounded p-2" /></div>
-            <div className="flex items-center gap-2 mt-6"><input type="checkbox" checked={taxiRequired} onChange={e => setTaxiRequired(e.target.checked)} /><label className="text-xs">Taxi Required?</label></div>
-            {taxiRequired && <div><label className="text-xs text-zinc-500">Taxi Cost</label><input type="number" value={taxiCost} onChange={e => setTaxiCost(parseFloat(e.target.value))} className="w-full mt-1 bg-black border border-zinc-700 rounded p-2" /></div>}
+        {/* Parts - Searchable */}
+        <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
+          <p className="font-bold mb-3">Parts (Linked to your Shop)</p>
+          <div className="relative">
+            <input value={pSearch} onChange={(e)=>{setPSearch(e.target.value); setShowP(true);}} onFocus={()=>setShowP(true)} placeholder="Type e.g. brake..." className="w-full p-3 bg-black border border-zinc-700 rounded-xl text-sm" />
+            {showP && pSearch && (
+              <div className="absolute z-20 w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-xl max-h-48 overflow-y-auto">
+                {pFiltered.map(s => (
+                  <div key={s} onClick={()=>{setParts([...parts,{name:s, price:0}]); setPSearch(""); setShowP(false);}} className="p-3 hover:bg-yellow-400 hover:text-black cursor-pointer text-sm">{s}</div>
+                ))}
+                <div onClick={()=>{setParts([...parts,{name:pSearch, price:0}]); setPSearch(""); setShowP(false);}} className="p-3 bg-black text-yellow-400 cursor-pointer text-sm">+ Add Custom "{pSearch}"</div>
+              </div>
+            )}
           </div>
-
-          <div className="mt-6 bg-black rounded-xl p-4 space-y-2 text-sm">
-            <div className="flex justify-between"><span>Services</span><span>£{serviceTotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Parts</span><span>£{partsTotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Labour ({labourHours}h × £{labourRate})</span><span>£{labourTotal.toFixed(2)}</span></div>
-            {taxiRequired && <div className="flex justify-between"><span>Taxi</span><span>£{taxiCost.toFixed(2)}</span></div>}
-            <div className="flex justify-between font-bold text-lg border-t border-zinc-800 pt-2"><span>Grand Total</span><span className="text-yellow-400">£{grandTotal.toFixed(2)}</span></div>
+          <div className="mt-3 space-y-2">
+            {parts.map((s:any,i:number)=>(
+              <div key={i} className="flex gap-2 items-center">
+                <span className="flex-1 bg-black p-2 rounded-lg text-sm border border-zinc-800">{s.name}</span>
+                <input type="number" value={s.price} onChange={(e)=>{const c=[...parts]; c[i].price=e.target.value; setParts(c);}} placeholder="£" className="w-20 p-2 bg-black border border-zinc-700 rounded-lg text-sm" />
+                <button onClick={()=>setParts(parts.filter((_:any,idx:number)=>idx!==i))} className="text-red-400 text-sm">X</button>
+              </div>
+            ))}
           </div>
-
-          <div className="mt-4">
-            <label className="text-xs text-zinc-500">Mechanic Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full mt-1 bg-black border border-zinc-700 rounded p-2 h-20 text-sm" placeholder="Brakes changed, test drive done..." />
-          </div>
-
-          <button onClick={() => saveJobSheet(true)} className="w-full mt-6 py-4 bg-yellow-400 text-black rounded-xl font-bold text-lg">Save & Send to Customer (Auto SMS + Invoice)</button>
-          <button onClick={() => saveJobSheet(false)} className="w-full mt-3 py-3 bg-zinc-800 rounded-xl text-sm">Save Draft Only</button>
         </div>
+      </div>
+
+      {/* Pricing */}
+      <div className="max-w-5xl mt-4 bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
+        <p className="font-bold mb-4">Pricing + Automation</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div><p className="text- text-zinc-500 mb-1">Labour Hours</p><input type="number" value={labourHours} onChange={(e)=>setLabourHours(parseFloat(e.target.value)||0)} className="w-full p-3 bg-black border border-zinc-700 rounded-xl" /></div>
+          <div><p className="text- text-zinc-500 mb-1">Rate £/hr</p><input type="number" value={labourRate} onChange={(e)=>setLabourRate(parseFloat(e.target.value)||0)} className="w-full p-3 bg-black border border-zinc-700 rounded-xl" /></div>
+          <div className="flex flex-col justify-end gap-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={taxiReq} onChange={(e)=>setTaxiReq(e.target.checked)} />Taxi Required?</label>{taxiReq && <input type="number" value={taxiCost} onChange={(e)=>setTaxiCost(parseFloat(e.target.value)||0)} placeholder="Taxi £" className="w-full p-2 bg-black border border-zinc-700 rounded-lg text-sm" />}</div>
+        </div>
+        <div className="mt-4 bg-black rounded-xl p-4 text-sm space-y-2 border border-zinc-800">
+          <div className="flex justify-between"><span>Services</span><span>£{serviceTotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Parts</span><span>£{partsTotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Labour ({labourHours}h × £{labourRate})</span><span>£{labourTotal.toFixed(2)}</span></div>
+          {taxiReq && <div className="flex justify-between"><span>Taxi</span><span>£{taxiCost.toFixed(2)}</span></div>}
+          <div className="flex justify-between font-black text-base border-t border-zinc-700 pt-2"><span>Grand Total</span><span className="text-yellow-400">£{grandTotal.toFixed(2)}</span></div>
+        </div>
+        <p className="text- text-zinc-500 mt-3">Mechanic Notes</p>
+        <textarea value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder="Brakes changed, test drive done..." className="w-full mt-1 p-3 bg-black border border-zinc-700 rounded-xl h-20 text-sm"></textarea>
+        <button disabled={loading} onClick={()=>save(true)} className="w-full mt-4 py-4 bg-yellow-400 text-black rounded-xl font-black">{loading? "Saving..." : "Save & Send to Customer (Auto SMS + Invoice)"}</button>
+        <button disabled={loading} onClick={()=>save(false)} className="w-full mt-2 py-3 bg-zinc-800 rounded-xl text-sm">Save Draft Only</button>
       </div>
     </div>
   );
