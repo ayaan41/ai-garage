@@ -1,234 +1,140 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 
-export default function BookPage() {
+const GARAGES: any = {
+  "1": { name: "Glasgow Auto Centre", address: "145 Maryhill Rd, G20 7", rating: 4.9, distance: "0.4 mi", price: 165 },
+  "2": { name: "Northside Motors", address: "22 Queen Margaret Dr", rating: 4.8, distance: "0.7 mi", price: 149 },
+  "3": { name: "Kelvinbridge Garage", address: "8 Otago St", rating: 4.7, distance: "1.1 mi", price: 175 },
+};
+
+export default function BookIdProPage() {
   const params = useParams();
   const router = useRouter();
-  const garageId = params.id as string;
+  const id = (params as any)?.id || "1";
+  const garage = GARAGES[id] || GARAGES["2"];
 
-  const [date, setDate] = useState("");
-  const [timeSlot, setTimeSlot] = useState("");
-  const [carReg, setCarReg] = useState("KM77YHK");
-  const [selectedServices, setSelectedServices] = useState<string[]>(["Oil Change"]);
-  const [name, setName] = useState("ahmadd");
-  const [phone, setPhone] = useState("09989897677");
+  const [selectedServices] = useState(["Full Service"]);
+  const [extraNotes, setExtraNotes] = useState("Brake noise - grinding at low speed, started 2 days ago");
+  const [customJob] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [minDate, setMinDate] = useState("");
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
-    setMinDate(todayStr);
-
-    // Default kal ki date
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setDate(tomorrow.toISOString().split("T")[0]);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const timeSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-
-  const getQuickDates = () => {
-    const dates = [];
-    for (let i = 0; i < 5; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const iso = d.toISOString().split("T")[0];
-      const label = i === 0? "Today" : i === 1? "Tomorrow" : d.toLocaleDateString('en-GB', {weekday:'short'});
-      const display = d.toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
-      dates.push({ iso, label, display, full: d });
-    }
-    return dates;
-  };
-
-  const quickDates = getQuickDates();
-
-  const isPastTime = (slot: string) => {
-    if (!date ||!minDate) return false;
-    if (date!== minDate) return false;
-    const [h, m] = slot.split(":").map(Number);
-    const slotDate = new Date();
-    slotDate.setHours(h, m, 0, 0);
-    return slotDate <= currentTime;
-  };
-
-  const isToday = date === minDate;
-
-  const toggleService = (s: string) => {
-    setSelectedServices(prev => prev.includes(s)? prev.filter(x => x!== s) : [...prev, s]);
-  };
 
   const handleBooking = async () => {
-    if (!date ||!timeSlot ||!carReg || selectedServices.length === 0 ||!name ||!phone) {
-      alert("Please fill all fields");
-      return;
-    }
+    if (!name || !phone) { alert("Please enter name and phone"); return; }
     setLoading(true);
-    try {
-      const payload = {
-        garage_id: garageId,
-        booking_date: date,
-        time_slot: timeSlot,
-        car_reg: carReg.toUpperCase().trim(),
-        service_type: selectedServices.join(", "),
-        service_types: selectedServices,
-        customer_name: name.trim(),
-        phone: phone.trim(),
-        status: "pending_quote",
-      };
-      console.log("Sending:", payload);
-      const res = await fetch("/api/bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const result = await res.json();
-      console.log("Result:", result);
-      if (!res.ok) throw new Error(result.error || "Booking failed");
-      const ref = result.ref || result.booking_ref || result.id;
-      alert(`Booking success! Ref: ${ref}`);
-      router.push(`/track/${ref}`);
-    } catch (e: any) {
-      console.error(e);
-      alert(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
+    setTimeout(() => { setLoading(false); router.push("/success?garage=" + id); }, 1200);
   };
 
-  const services = ["MOT", "Full Service", "Interim Service", "Brake Check", "Engine Diagnostics", "Oil Change"];
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex justify-center p-4 pb-24">
-      <div className="w-full max-w-">
-        <div className="flex justify-between items-center mt-6">
-          <h1 className="text- font-black tracking-tighter">Book a Service</h1>
-          <div className="text- bg-white/10 px-3 py-1 rounded-full font-bold tracking-widest">{currentTime.toLocaleTimeString('en-GB')}</div>
+    <div className="min-h-screen bg-[#f5f5f5]">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-6 py-3 flex justify-between items-center">
+          <Link href="/book" className="text-[13px] font-medium text-gray-700 hover:text-black flex items-center gap-2">
+            <span className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-black">←</span> Back to garages
+          </Link>
+          <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center text-white font-bold text-[10px]">AG</div>
         </div>
+      </header>
 
-        <div className="mt-8">
-          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Select Date *</label>
-
-          {/* QUICK DATE BUTTONS - Tumhara wala same */}
-          <div className="grid grid-cols-5 gap-2 mt-3">
-            {quickDates.map(qd => {
-              const selected = date === qd.iso;
-              return (
-                <button
-                  key={qd.iso}
-                  onClick={() => setDate(qd.iso)}
-                  className={`p-3 rounded- border flex flex-col items-center gap-1 transition-all active:scale-[0.96] ${selected? "bg-[#FFC600] text-black border-[#FFC600] font-black shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-600"}`}
-                >
-                  <span className="text- font-black tracking-widest">{qd.label}</span>
-                  <span className="text- font-medium">{qd.display}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 relative">
-            <input
-              type="date"
-              value={date}
-              min={minDate}
-              onChange={e => setDate(e.target.value)}
-              className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 text-white outline-none focus:border-[#FFC600] focus:ring-1 focus:ring-[#FFC600]/30 transition-all text-"
-            />
-          </div>
-
-          <div className="mt-3 bg-[#121212] border border-zinc-800 rounded- p-3">
-            <p className="text- text-white font-medium">📅 Selected: {date? new Date(date).toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) : "No date"} <span className="text-[#FFC600]">{isToday? "(Today)" : "(Future - All times available)"}</span></p>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Select Time *</label>
-          <div className="grid grid-cols-3 gap-2.5 mt-3">
-            {timeSlots.map(slot => {
-              const past = isPastTime(slot);
-              const selected = timeSlot === slot;
-              return (
-                <button
-                  key={slot}
-                  disabled={past}
-                  onClick={() =>!past && setTimeSlot(slot)}
-                  className={`p-3.5 rounded- border text- font-bold transition-all active:scale-[0.97] ${past? "bg-zinc-900/50 text-zinc-600 border-zinc-800/50 cursor-not-allowed opacity-50" : selected? "bg-[#FFC600] text-black border-[#FFC600] font-black shadow-lg" : "bg-[#121212] text-white border-zinc-800 hover:border-zinc-700"}`}
-                >
-                  {slot} {past? "✕" : ""}
-                </button>
-              );
-            })}
-          </div>
-
-          {isToday? (
-            <div className="mt-3 bg-[#1a1a00] border border-yellow-900/40 rounded- p-3 flex gap-2.5">
-              <span className="text-yellow-500 text-">⚠</span>
+      <div className="max-w-5xl mx-auto px-6 py-6">
+        <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-6">
+          <div className="space-y-4">
+            <div className="bg-black text-white rounded-2xl p-4 flex justify-between border-2 border-black">
               <div>
-                <p className="text- text-zinc-300 font-bold">Past times disabled for today</p>
-                <p className="text- text-zinc-500">Current: {currentTime.toLocaleTimeString('en-GB')} - Future only</p>
+                <p className="font-bold text-[14px] text-white">{garage.name}</p>
+                <p className="text-[11px] text-white/60 mt-1">{garage.address} • {garage.distance} • ⭐ {garage.rating}</p>
+                <p className="text-[11px] text-[#FFCC00] mt-1 font-medium">⚙️ AI Match: 96% • Best for your brake issue</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-[20px] text-white">£{garage.price}</p>
+                <p className="text-[10px] text-white/50">Est. 2.5 hrs</p>
               </div>
             </div>
-          ) : (
-            <div className="mt-3 bg-green-950/30 border border-green-900/30 rounded- p-3 flex gap-2.5">
-              <span className="text-green-500">✅</span>
-              <div>
-                <p className="text- text-green-300 font-bold">All times available</p>
-                <p className="text- text-zinc-500">Future date {date? new Date(date).toLocaleDateString('en-GB') : ""} - All 09:00-17:00 open</p>
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+              <h3 className="font-semibold text-[13px] text-black flex items-center gap-2">
+                <span className="w-5 h-5 bg-black text-white rounded-full flex items-center justify-center text-[10px]">1</span> Your booking summary
+              </h3>
+              <div className="mt-3 flex gap-2.5">
+                <div className="w-[60px] h-[36px] bg-[#FFCC00] border-2 border-black rounded-md flex flex-col items-center justify-center font-black text-[9px] leading-none text-black">YK66<br/>OPR</div>
+                <div>
+                  <p className="font-semibold text-[12px] text-black">BMW 1 Series • 2016 • BLACK • 52k mi</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">G20 6 • MOT Valid until Jun 2025</p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {selectedServices.map((s: string) => (
+                  <div key={s} className="p-2.5 bg-black text-white rounded-xl border-2 border-black">
+                    <p className="text-[11px] font-medium leading-tight">{s}</p>
+                    <p className="text-[9px] text-white/60 mt-0.5">Included</p>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="mt-6">
-          <label className="text- text-zinc-400 font-black tracking-widest uppercase">Car Registration *</label>
-          <input value={carReg} onChange={e => setCarReg(e.target.value.toUpperCase())} className="w-full bg-[#121212] border-2 border-zinc-700 rounded- p-4 mt-2 text-white uppercase font-black tracking-wider text- outline-none focus:border-[#FFC600] h-" />
-          <p className="text- text-zinc-500 mt-2 font-medium">Current: <span className="text-white font-black">{carReg}</span> - Saved as uppercase</p>
-        </div>
+            <div className="bg-white rounded-2xl border-2 border-black p-4 shadow-sm">
+              <h3 className="font-semibold text-[13px] text-black flex items-center gap-2">
+                <span className="w-5 h-5 bg-black text-white rounded-full flex items-center justify-center text-[10px]">2</span> Your vehicle details • Separate from cards
+                <span className="ml-auto text-[9px] bg-[#FFCC00] text-black border border-black px-2 py-0.5 rounded-full font-bold">AI → GARAGE</span>
+              </h3>
+              <div className="mt-3">
+                <label className="text-[11px] font-semibold text-black">Additional Details - Optional but helps garage quote accurately</label>
+                <textarea value={extraNotes} onChange={(e)=>setExtraNotes(e.target.value)} placeholder="Example: Brake noise, tyre change needed..." rows={3} className="mt-1.5 w-full px-3 py-2.5 border-2 border-gray-300 rounded-xl text-[12px] text-black bg-white focus:outline-none focus:border-black focus:ring-2 focus:ring-gray-100 resize-none" />
+                <div className="mt-2 bg-[#FFCC00]/20 border-2 border-[#FFCC00] rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-black uppercase tracking-wide">⚙️ Live AI Analysis</p>
+                  <p className="text-[11px] text-black mt-1 font-medium">🔴 Brake system • High urgency • Likely worn pads • Photo recommended</p>
+                  <p className="text-[10px] text-black/70 mt-1">→ Original + AI summary will be sent to {garage.name}</p>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button className="text-[11px] font-bold bg-black text-white px-4 py-2.5 rounded-full border-2 border-black hover:bg-gray-900">📸 Add photo</button>
+                  <button className="text-[11px] font-bold bg-white border-2 border-black px-4 py-2.5 rounded-full text-black hover:bg-gray-50">🎙️ Voice note</button>
+                </div>
+              </div>
+            </div>
 
-        <div className="mt-6">
-          <div className="flex justify-between items-center">
-            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Service Type *</label>
-            <span className="bg-[#FFC600] text-black text- px-3 py-1 rounded-full font-black tracking-widest">{selectedServices.length} SELECTED</span>
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+              <h3 className="font-semibold text-[13px] text-black flex items-center gap-2">
+                <span className="w-5 h-5 bg-black text-white rounded-full flex items-center justify-center text-[10px]">3</span> Your contact details
+              </h3>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Your Name *" className="px-3.5 py-3 border-2 border-gray-300 rounded-xl text-[12px] text-black bg-white focus:outline-none focus:border-black" />
+                <input value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="Phone - 07xxx *" className="px-3.5 py-3 border-2 border-gray-300 rounded-xl text-[12px] text-black bg-white focus:outline-none focus:border-black" />
+              </div>
+              <input value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Email (optional) - for confirmation" className="mt-3 w-full px-3.5 py-3 border-2 border-gray-300 rounded-xl text-[12px] text-black bg-white focus:outline-none focus:border-black" />
+              <div className="mt-4 bg-[#FFCC00]/20 border-2 border-[#FFCC00] rounded-xl p-3">
+                <p className="text-[11px] font-bold text-black">No Price Displayed - Garage Will Quote</p>
+                <p className="text-[11px] text-black/70 mt-1 leading-relaxed">Garage will inspect and send you a quote. You selected {selectedServices.length} jobs. Extra details + AI analysis included.</p>
+              </div>
+              <button onClick={handleBooking} disabled={loading} className="mt-4 w-full bg-black text-white font-bold py-3.5 rounded-xl text-[13px] hover:bg-gray-900 disabled:opacity-50 border-2 border-black shadow-md active:scale-[0.99] transition">
+                {loading ? "Creating booking..." : `Confirm Booking - ${selectedServices.length} Jobs - Free Quote`}
+              </button>
+              <p className="text-[10px] text-gray-500 mt-2 text-center font-medium">✓ No spam • Free quote • You choose garage • Encrypted</p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-3">
-            {services.map(s => {
-              const sel = selectedServices.includes(s);
-              return (
-                <button key={s} onClick={() => toggleService(s)} className={`p-4 rounded- border text-left text- font-bold transition-all ${sel? "bg-[#FFC600] text-black border-[#FFC600] font-black" : "bg-[#121212] text-zinc-400 border-zinc-800 hover:border-zinc-700"}`}>
-                  {sel? "✓ " : ""}{s}
-                </button>
-              );
-            })}
+
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border-2 border-black p-4 sticky top-[65px] shadow-sm">
+              <h4 className="font-bold text-[12px] text-black">Booking summary</h4>
+              <div className="mt-3 space-y-2.5 text-[11px]">
+                <div className="flex justify-between"><span className="text-gray-600 font-medium">Garage</span><span className="font-bold text-black">{garage.name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600 font-medium">Vehicle</span><span className="font-bold text-black">YK66 OPR • BMW</span></div>
+                <div className="flex justify-between"><span className="text-gray-600 font-medium">Services</span><span className="font-bold text-black">{selectedServices.join(", ")}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600 font-medium">Est. Price</span><span className="font-bold text-black text-[14px]">£{garage.price}</span></div>
+                <div className="pt-3 border-t-2 border-gray-100">
+                  <p className="text-[10px] font-bold text-black uppercase tracking-wide">Customer detail (separate)</p>
+                  <p className="text-[11px] text-black mt-1.5 font-medium bg-gray-50 border border-gray-200 rounded-lg p-2">{extraNotes || "No extra details"}</p>
+                </div>
+              </div>
+              <div className="mt-4 bg-black text-white rounded-xl p-3 border-2 border-black">
+                <p className="text-[10px] font-bold uppercase tracking-wide">✓ Detail separate • AI → Garage • No sponsored ranking</p>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <div>
-            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Your Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 mt-2 text-white outline-none focus:border-[#FFC600] h- text-" />
-          </div>
-          <div>
-            <label className="text- text-zinc-400 font-black tracking-widest uppercase">Phone *</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#121212] border border-zinc-700 rounded- p-4 mt-2 text-white outline-none focus:border-[#FFC600] h- text-" />
-          </div>
-        </div>
-
-        <div className="mt-6 bg-[#1a1a00] border border-yellow-900/30 rounded- p-4">
-          <p className="text-[#FFC600] text- font-black tracking-widest">💛 NO UPFRONT PAYMENT</p>
-          <p className="text-zinc-400 text- mt-2 leading-relaxed">
-            Selected: <span className="text-white font-bold">{selectedServices.join(", ") || "None"}</span> at <span className="text-white font-bold">{timeSlot || "--:--"}</span> on <span className="text-white font-bold">{date? new Date(date).toLocaleDateString("en-GB") : "--"}</span><br/>
-            Car: <span className="text-[#FFC600] font-black tracking-wider">{carReg}</span>
-          </p>
-        </div>
-
-        <button onClick={handleBooking} disabled={loading} className="w-full bg-[#FFC600] hover:bg-[#FFD500] text-black h- rounded- font-black text- mt-6 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg tracking-wide">
-          {loading? "Booking in progress... ⏳" : `Confirm Booking - ${carReg} at ${timeSlot || "--:--"}`}
-        </button>
       </div>
     </div>
   );

@@ -1,103 +1,81 @@
-"use client"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import Link from "next/link"
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../../lib/supabaseClient";
 
-export default function CustomerRegister() {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" })
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+export default function CustomerRegisterPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [reg, setReg] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleRegister = async (e: any) => {
-    e.preventDefault()
-    setLoading(true)
-
-    const { data: existing } = await supabase.from("profiles").select("*").eq("email", form.email).single()
-    if (existing) {
-      alert("Email already registered! Login karo.")
-      setLoading(false)
-      return
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      console.log("URL:", process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0,30));
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
+      if (signUpError) throw signUpError;
+      
+      // Create profile
+      if (data.user) {
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: data.user.id,
+          email: email.trim(),
+          vehicle_reg: reg.toUpperCase().trim() || null,
+        });
+        if (profileError) console.log("Profile error (may be RLS):", profileError.message);
+      }
+      
+      router.push("/customer");
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
-
-    const { error } = await supabase.from("profiles").insert([{
-      email: form.email,
-      name: form.name,
-      phone: form.phone,
-      password: form.password,
-      role: "customer",
-      created_at: new Date().toISOString()
-    }])
-
-    if (error) {
-      alert("Error: " + error.message)
-      setLoading(false)
-      return
-    }
-
-    localStorage.setItem("customer_email", form.email)
-    localStorage.setItem("customer_name", form.name)
-    localStorage.setItem("user_role", "customer")
-
-    alert("Register ho gaya! My Cars pe ja rahe ho.")
-    router.push("/customer")
-    setLoading(false)
-  }
+  };
 
   return (
-    <div className="min-h-screen w-full flex bg-[#0a0a0a]">
-      {/* Left - Same Black Branding */}
-      <div className="hidden lg:flex w-[55%] bg-[#111] relative flex-col justify-between p-12">
-        <div>
-          <h1 className="text-white text- font-black tracking-tighter">HAJI AUTO CENTER</h1>
-          <p className="text-white/40 text- tracking-[0.2em] mt-1">UK • 10K STANDARD • GLASGOW</p>
-        </div>
-        <div>
-          <h2 className="text-white text- font-black leading-[0.9] tracking-tighter">
-            Join<br />the<br /><span className="text-[#ffcc00]">family.</span>
-          </h2>
-          <p className="text-white/50 text- mt-6 max-w-">Apni gadiyon ki history ke liye register karo - Simple!</p>
-        </div>
-        <div className="h-1 w-8 bg-[#ffcc00] rounded-full"></div>
-      </div>
-
-      {/* Right - Your Same Logic With Premium Card */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-[#f6f6f7]">
-        <div className="w-full max-w-">
-          <div className="lg:hidden mb-8"><h1 className="text-black text- font-black tracking-tighter">HAJI AUTO CENTER</h1></div>
-
-          <div className="bg-white rounded- p-8 shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-black/[0.06]">
-            <h1 className="text- font-black text-black tracking-[-0.02em] leading-none">Customer Register</h1>
-            <p className="text- text-[#6e6e73] mt-3 font-medium">Apni gadiyon ki history ke liye register karo - Simple!</p>
-
-            <form onSubmit={handleRegister} className="mt-8 space-y-4">
-              <div>
-                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Full Name</label>
-                <input type="text" placeholder="Muhammad Mubeen" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, name: e.target.value})} />
-              </div>
-              <div>
-                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Email</label>
-                <input type="email" placeholder="you@email.com" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, email: e.target.value})} />
-              </div>
-              <div>
-                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Phone</label>
-                <input type="tel" placeholder="07XXX XXXXXX" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, phone: e.target.value})} />
-              </div>
-              <div>
-                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Password</label>
-                <input type="password" placeholder="••••••••" required className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all" onChange={e => setForm({...form, password: e.target.value})} />
-              </div>
-              <button disabled={loading} className="w-full h- bg-black text-white font-bold rounded- hover:bg-[#222] transition-all text- mt-2">
-                {loading? "Register ho raha hai..." : "Register →"}
-              </button>
-            </form>
-
-            <p className="text-center mt-8 text- text-[#6e6e73]">
-              Already registered? <Link href="/customer/login" className="text-black font-black underline decoration-2 underline-offset-4">Login</Link>
-            </p>
+    <div className="min-h-screen bg-[#f5f7fb] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+        <div className="flex justify-center mb-6">
+          <div className="w-12 h-12 bg-[#0f172a] rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">AG</span>
           </div>
+        </div>
+        <h1 className="text-2xl font-bold text-center text-[#0f172a] mb-1">Create Account - AI GARAGE</h1>
+        <p className="text-sm text-center text-gray-500 mb-6">Customer Registration - Professional</p>
+        {email && (
+          <div className="mb-4 p-2 bg-green-50 text-green-700 text-xs rounded-lg text-center">
+            Typing detected: {email} ✓ Visible!
+          </div>
+        )}
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#0f172a] mb-2">Email Address *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-black bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#0f172a] mb-2">Password *</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-black bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#0f172a] mb-2">First Vehicle Registration (Optional)</label>
+            <input type="text" value={reg} onChange={(e) => setReg(e.target.value.toUpperCase())} placeholder="KM66XMY" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-black bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase" />
+          </div>
+          {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
+          <button type="submit" disabled={loading} className="w-full bg-[#0f172a] text-white font-semibold py-3 rounded-xl hover:bg-black transition disabled:opacity-50">{loading ? "Creating..." : "Create Account →"}</button>
+        </form>
+        <div className="mt-6 text-center">
+          <a href="/customer/login" className="text-sm font-semibold text-[#0f172a] underline">Already have an account? Sign in</a>
         </div>
       </div>
     </div>
-  )
+  );
 }

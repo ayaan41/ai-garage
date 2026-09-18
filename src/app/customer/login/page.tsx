@@ -1,105 +1,47 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "../../../lib/supabaseClient";
 
-export default function CustomerLogin() {
+export default function CustomerLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e: any) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      alert(error.message);
-    } else {
-      // Tumhara profiles wala system ke liye bhi localStorage save
-      localStorage.setItem("customer_email", email);
-      localStorage.setItem("user_role", "customer");
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+      if (authError) throw authError;
       router.push("/customer");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-[#0a0a0a]">
-      {/* Left - Branding */}
-      <div className="hidden lg:flex w-[55%] bg-[#111] relative overflow-hidden flex-col justify-between p-12">
-        <div>
-          <h1 className="text-white text- font-black tracking-tighter">HAJI AUTO CENTER</h1>
-          <p className="text-white/40 text- tracking-[0.2em] mt-1">UK • 10K STANDARD • GLASGOW</p>
-        </div>
-        <div>
-          <h2 className="text-white text- font-black leading-[0.9] tracking-tighter">
-            Your car,<br />your<br /><span className="text-[#ffcc00]">history.</span>
-          </h2>
-          <p className="text-white/50 text- mt-6 max-w- leading-relaxed">Track every service, mileage & invoice — UK standard 10k miles service history.</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="h-1 w-8 bg-[#ffcc00] rounded-full"></div>
-          <div className="h-1 w-2 bg-white/20 rounded-full"></div>
-          <div className="h-1 w-2 bg-white/20 rounded-full"></div>
-        </div>
-      </div>
-
-      {/* Right - Login */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-[#f6f6f7]">
-        <div className="w-full max-w-">
-          <div className="lg:hidden mb-8">
-            <h1 className="text-black text- font-black tracking-tighter">HAJI AUTO CENTER</h1>
-          </div>
-
-          <div className="bg-white rounded- p-8 shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-black/[0.06]">
-            <h1 className="text- font-black text-black tracking-[-0.02em] leading-none">Welcome back</h1>
-            <p className="text- text-[#6e6e73] mt-3 font-medium">Apni cars ki history dekho</p>
-
-            <form onSubmit={handleLogin} className="mt-8 space-y-5">
-              <div>
-                <label className="text- font-black tracking-widest text-black/60 mb-2 block uppercase">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@email.com"
-                  required
-                  className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all"
-                />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text- font-black tracking-widest text-black/60 uppercase">Password</label>
-                  <a href="#" className="text- font-bold text-[#0a84ff]">Forgot?</a>
-                </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full h- px-4 rounded- bg-[#f5f5f7] border border-transparent focus:bg-white focus:border-black text-black text- font-medium outline-none transition-all"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full h- bg-black text-white font-bold rounded- hover:bg-[#222] transition-all text- tracking-wide"
-              >
-                {loading? "Signing in..." : "Login →"}
-              </button>
-            </form>
-
-            <div className="mt-8 flex items-center justify-center gap-2 text-">
-              <span className="text-[#6e6e73]">New here?</span>
-              <a href="/customer/register" className="font-black text-black underline decoration-2 underline-offset-4">Register new account</a>
-            </div>
-          </div>
-
-          <p className="text-center text- text-black/30 mt-6 tracking-wide font-medium">Secure • Encrypted • UK GDPR Compliant</p>
-        </div>
+    <div className="min-h-screen bg-[#f5f7fb] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 border">
+        <div className="flex justify-center mb-6"><div className="w-12 h-12 bg-[#0f172a] rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">AG</span></div></div>
+        <h1 className="text-2xl font-bold text-center text-[#0f172a] mb-1">Welcome Back - AI GARAGE</h1>
+        <p className="text-sm text-center text-gray-500 mb-6">Customer Login - Professional</p>
+        {email && <div className="mb-4 p-2 bg-green-50 text-green-700 text-xs rounded-lg text-center">Typing detected: {email} ✓ Visible!</div>}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div><label className="block text-sm font-semibold text-[#0f172a] mb-2">Email Address *</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-black bg-white" required /></div>
+          <div><label className="block text-sm font-semibold text-[#0f172a] mb-2">Password *</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" className="w-full px-4 py-3 border border-gray-300 rounded-xl text-black bg-white" required /></div>
+          {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
+          <button type="submit" disabled={loading} className="w-full bg-[#0f172a] text-white font-semibold py-3 rounded-xl hover:bg-black transition disabled:opacity-50">{loading ? "Signing in..." : "Sign In →"}</button>
+        </form>
+        <div className="mt-6 text-center"><a href="/customer/register" className="text-sm font-semibold text-[#0f172a] underline">Don't have an account? Create Account</a></div>
       </div>
     </div>
   );
